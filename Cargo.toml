@@ -1,5 +1,5 @@
 [package]
-name = "msg-store-rs"
+name = "msg-store"
 version = "0.1.0"
 authors = ["joshua"]
 edition = "2018"
