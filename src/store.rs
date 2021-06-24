@@ -193,19 +193,19 @@ impl<B: Bridge> Store<B> {
             collection.byte_size += msg_byte_size;
             collection.messages.insert(uuid.clone(), msg_byte_size);
         } else {
-            let mut col;
+            let mut collection;
             if let Some(collection_configs) = &self.config.collections {
                 if let Some(config) = collection_configs.get(&priority) {
-                    col = Collection::new(&config);
+                    collection = Collection::new(&config);
                 } else {
-                    col = Collection::new(&CollectionConfig::new(*priority, None));
+                    collection = Collection::new(&CollectionConfig::new(*priority, None));
                 }
             } else {
-                col = Collection::new(&CollectionConfig::new(*priority, None));
+                collection = Collection::new(&CollectionConfig::new(*priority, None));
             }
-            col.byte_size += msg_byte_size;
-            col.messages.insert(uuid.clone(), msg_byte_size);
-            self.collections.insert(*priority, col);
+            collection.byte_size += msg_byte_size;
+            collection.messages.insert(uuid.clone(), msg_byte_size);
+            self.collections.insert(*priority, collection);
         }
         if let Err(error) = self.bridge.put(uuid.clone(), &msg) {
             if let Some(collection) = self.collections.get_mut(priority) {
