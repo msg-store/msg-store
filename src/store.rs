@@ -73,9 +73,9 @@ impl<B: Bridge> Store<B> {
             let uuid = packet.get_uuid();
             let msg_byte_size = packet.get_byte_size();
             let priority = uuid.get_priority();
-            if let Some(col_ref_mut) = collections.get_mut(&priority) {
-                col_ref_mut.byte_size += msg_byte_size;
-                col_ref_mut.messages.insert(uuid.clone(), msg_byte_size);
+            if let Some(collection) = collections.get_mut(&priority) {
+                collection.byte_size += msg_byte_size;
+                collection.messages.insert(uuid.clone(), msg_byte_size);
             } else {
                 /* TODO: check for config */
                 let mut col: Collection = Collection::new(&CollectionConfig::new(priority, None));
@@ -103,8 +103,8 @@ impl<B: Bridge> Store<B> {
             }
         }
         let uuid = Rc::new(self.id_manager.new_id(&priority));
-        if let Some(col_ref_mut) = self.collections.get_mut(&priority) {
-            if let Some(limit) = col_ref_mut.limit {
+        if let Some(collection) = self.collections.get_mut(&priority) {
+            if let Some(limit) = collection.limit {
                 if msg_byte_size > limit {
                     return Err(StoreError::ExceedsCollectionLimit);
                 }
@@ -112,8 +112,8 @@ impl<B: Bridge> Store<B> {
         }
         // get available byte size
         let mut used_byte_size: u64 = 0;
-        for (col_priority, col_ref) in self.collections.iter() {
-            used_byte_size += col_ref.byte_size;
+        for (col_priority, collection) in self.collections.iter() {
+            used_byte_size += collection.byte_size;
             if col_priority < priority {
                 break;
             }
@@ -125,14 +125,14 @@ impl<B: Bridge> Store<B> {
             }
         }
         // validate that the new collection size does not exceed collection limit
-        if let Some(col_ref_mut) = self.collections.get_mut(priority) {
-            let proposed_byte_size = col_ref_mut.byte_size + msg_byte_size;
-            if let Some(limit) = col_ref_mut.limit {
+        if let Some(collection) = self.collections.get_mut(priority) {
+            let proposed_byte_size = collection.byte_size + msg_byte_size;
+            if let Some(limit) = collection.limit {
                 if proposed_byte_size > limit {
                     let excess_bytes = proposed_byte_size - limit;
                     let mut bytes_removed: u64 = 0;
                     let mut ids_removed: Vec<Rc<Uuid>> = vec![];
-                    for (uuid, byte_size) in col_ref_mut.messages.iter() {
+                    for (uuid, byte_size) in collection.messages.iter() {
                         bytes_removed += byte_size;
                         ids_removed.push(uuid.clone());
                         if bytes_removed >= excess_bytes {
@@ -141,10 +141,10 @@ impl<B: Bridge> Store<B> {
                     }
                     // remove id's from collection
                     for uuid in ids_removed {
-                        col_ref_mut.messages.remove(&(*uuid));
+                        collection.messages.remove(&(*uuid));
                     }
                     // decrease bytes from collection data
-                    col_ref_mut.byte_size -= bytes_removed;
+                    collection.byte_size -= bytes_removed;
                     // decrease bytes from store
                     self.byte_size -= bytes_removed;
                 }
@@ -157,26 +157,26 @@ impl<B: Bridge> Store<B> {
                 let excess_bytes = proposed_byte_size - limit;
                 let mut bytes_removed: u64 = 0;
                 let mut whole_collections_to_removed: Vec<Priority> = vec![];
-                for (priority, col_ref_mut) in self.collections.iter_mut().rev() {
+                for (priority, collection) in self.collections.iter_mut().rev() {
                     let bytes_still_needed_to_be_removed = excess_bytes - bytes_removed;
-                    if bytes_still_needed_to_be_removed >= col_ref_mut.byte_size {
+                    if bytes_still_needed_to_be_removed >= collection.byte_size {
                         whole_collections_to_removed.push(*priority);
-                        bytes_removed += col_ref_mut.byte_size;
+                        bytes_removed += collection.byte_size;
                         continue;
                     }
                     let mut bytes_removed_from_col: u64 = 0;
                     let mut uuids_removed: Vec<Rc<Uuid>> = vec![];
-                    for (uuid, byte_size) in col_ref_mut.messages.iter() {
+                    for (uuid, byte_size) in collection.messages.iter() {
                         bytes_removed += byte_size;
                         bytes_removed_from_col += byte_size;
                         uuids_removed.push(uuid.clone());
                         if bytes_removed >= excess_bytes {
-                            col_ref_mut.byte_size -= bytes_removed_from_col;
+                            collection.byte_size -= bytes_removed_from_col;
                             break;
                         }
                     }
                     for uuid in uuids_removed {
-                        col_ref_mut.messages.remove(&uuid);
+                        collection.messages.remove(&uuid);
                     }
                     if bytes_removed >= excess_bytes {
                         break;
@@ -189,9 +189,9 @@ impl<B: Bridge> Store<B> {
             }
         }
         // add msg data to collection
-        if let Some(col_ref_mut) = self.collections.get_mut(priority) {
-            col_ref_mut.byte_size += msg_byte_size;
-            col_ref_mut.messages.insert(uuid.clone(), msg_byte_size);
+        if let Some(collection) = self.collections.get_mut(priority) {
+            collection.byte_size += msg_byte_size;
+            collection.messages.insert(uuid.clone(), msg_byte_size);
         } else {
             let mut col;
             if let Some(collection_configs) = &self.config.collections {
@@ -208,9 +208,9 @@ impl<B: Bridge> Store<B> {
             self.collections.insert(*priority, col);
         }
         if let Err(error) = self.bridge.put(uuid.clone(), &msg) {
-            if let Some(col_ref_mut) = self.collections.get_mut(priority) {
-                col_ref_mut.byte_size -= msg_byte_size;
-                col_ref_mut.messages.remove(&uuid);
+            if let Some(collection) = self.collections.get_mut(priority) {
+                collection.byte_size -= msg_byte_size;
+                collection.messages.remove(&uuid);
             } else {
                 return Err(StoreError::OutOfSync);
             }
@@ -224,17 +224,17 @@ impl<B: Bridge> Store<B> {
         let uuid = Rc::new(Uuid::from_string(id));
         let priority = uuid.get_priority();
         let mut remove_collection = false;
-        if let Some(col_ref_mut) = self.collections.get_mut(&priority) {
-            let bytes_removed = { col_ref_mut.messages.remove(&uuid) };
+        if let Some(collection) = self.collections.get_mut(&priority) {
+            let bytes_removed = { collection.messages.remove(&uuid) };
             if let Some(bytes_removed) = bytes_removed {
-                col_ref_mut.byte_size -= bytes_removed;
+                collection.byte_size -= bytes_removed;
                 self.byte_size -= bytes_removed;
                 if let Err(error) = self.bridge.del(uuid) {
-                    col_ref_mut.byte_size += bytes_removed;
+                    collection.byte_size += bytes_removed;
                     self.byte_size += bytes_removed;
                     return Err(StoreError::Db(error));
                 }
-                if col_ref_mut.messages.len() == 0 {
+                if collection.messages.len() == 0 {
                     remove_collection = true;
                 }
             }
