@@ -278,6 +278,59 @@ impl<B: Bridge> Store<B> {
         Ok(None)
     }
 
+    pub fn dump(&mut self) -> Result<Option<Packet>, StoreError> {
+        let mut priority_removed: Option<Priority> = None;
+        let mut uuid_option: Option<Rc<Uuid>> = None;
+        let uuid_removed: Rc<Uuid>;
+        let mut bytes_removed = 0;
+        let mut packet: Option<Packet> = None;
+        if let Some((priority, collection)) = self.collections.iter_mut().next() {
+            if let Some((uuid, byte_size)) = collection.messages.iter().next() {
+                let id = uuid.to_string();
+                uuid_option = Some(uuid.clone());
+                uuid_removed = uuid.clone();
+                match self.bridge.get(uuid.clone()) {
+                    Ok(msg_option) => match msg_option {
+                        Some(msg) => {
+                            match self.bridge.del(uuid.clone()) {
+                                Ok(_) => {
+                                    bytes_removed = *byte_size;
+                                    packet = Some(Packet { id, msg });
+                                },
+                                Err(error) => {
+                                   return Err(StoreError::Db(error))
+                                }
+                            }
+                        } ,
+                        None => {
+                            // packet = None;
+                        }
+                    },
+                    Err(error) => { 
+                        return Err(StoreError::Db(error))
+                    }
+                };
+            } else {
+                return Err(StoreError::OutOfSync);
+            }
+            collection.messages.remove(&uuid_removed);
+            collection.byte_size -= bytes_removed;
+            self.byte_size -= bytes_removed;
+            if collection.messages.len() == 0 {
+               priority_removed = Some(*priority);
+            }
+        }
+        if let Some(priority) = priority_removed {
+            self.collections.remove(&priority);
+        }
+        if let Some(event_handle) = &self.listener {
+            if let Some(uuid) = uuid_option {
+                event_handle(EventMsg::MsgDumped(uuid.clone(), bytes_removed));
+            }
+        }
+        Ok(packet)
+    }
+
     pub fn get_collections(&self) -> Vec<u64> {
         let mut list: Vec<u64> = vec![];
         for priority in self.collections.keys() {
