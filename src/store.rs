@@ -39,12 +39,22 @@ struct InnerStoreConfig {
     pub collections: Option<HashMap<Priority, CollectionConfig>>,
 }
 
+pub enum EventMsg {
+    MsgAdded,
+    MsgDeleted,
+    MsgBurned(Rc<Uuid>, Priority, ByteSize),
+    CollectionBurned(Priority, u32, ByteSize),
+    MsgDumped(Rc<Uuid>, ByteSize),
+    MsgImported(Rc<Uuid>, Priority, ByteSize)
+}
+
 pub struct Store<B: Bridge> {
     bridge: B,
     byte_size: u64,
     config: InnerStoreConfig,
     id_manager: IdManager,
     collections: Collections,
+    listener: Option<Box<dyn Fn(EventMsg)>>
 }
 
 impl<B: Bridge> Store<B> {
@@ -92,6 +102,7 @@ impl<B: Bridge> Store<B> {
             byte_size,
             // collection_list: RefCell::new(collection_list),
             collections,
+            listener: None
         })
     }
 
@@ -131,22 +142,26 @@ impl<B: Bridge> Store<B> {
                 if proposed_byte_size > limit {
                     let excess_bytes = proposed_byte_size - limit;
                     let mut bytes_removed: u64 = 0;
-                    let mut ids_removed: Vec<Rc<Uuid>> = vec![];
+                    let mut ids_removed: Vec<(Rc<Uuid>, ByteSize)> = vec![];
                     for (uuid, byte_size) in collection.messages.iter() {
                         bytes_removed += byte_size;
-                        ids_removed.push(uuid.clone());
+                        ids_removed.push((uuid.clone(), *byte_size));
                         if bytes_removed >= excess_bytes {
                             break;
                         }
                     }
                     // remove id's from collection
                     for uuid in ids_removed {
-                        collection.messages.remove(&(*uuid));
+                        if let Err(error) = self.bridge.del(uuid.0.clone()) {
+                            return Err(StoreError::Db(error))
+                        }
+                        collection.messages.remove(&uuid.0);
+                        collection.byte_size -= uuid.1;
+                        self.byte_size -= uuid.1;
+                        if let Some(event_handle) = &self.listener {
+                            event_handle(EventMsg::MsgBurned(uuid.0, *priority, uuid.1));
+                        }
                     }
-                    // decrease bytes from collection data
-                    collection.byte_size -= bytes_removed;
-                    // decrease bytes from store
-                    self.byte_size -= bytes_removed;
                 }
             }
         }
@@ -156,42 +171,41 @@ impl<B: Bridge> Store<B> {
             if proposed_byte_size > limit {
                 let excess_bytes = proposed_byte_size - limit;
                 let mut bytes_removed: u64 = 0;
-                let mut whole_collections_to_removed: Vec<Priority> = vec![];
                 for (priority, collection) in self.collections.iter_mut().rev() {
-                    let bytes_still_needed_to_be_removed = excess_bytes - bytes_removed;
-                    if bytes_still_needed_to_be_removed >= collection.byte_size {
-                        whole_collections_to_removed.push(*priority);
-                        bytes_removed += collection.byte_size;
-                        continue;
-                    }
                     let mut bytes_removed_from_col: u64 = 0;
-                    let mut uuids_removed: Vec<Rc<Uuid>> = vec![];
+                    let mut uuids_removed: Vec<(Rc<Uuid>, ByteSize)> = vec![];
                     for (uuid, byte_size) in collection.messages.iter() {
                         bytes_removed += byte_size;
                         bytes_removed_from_col += byte_size;
-                        uuids_removed.push(uuid.clone());
+                        uuids_removed.push((uuid.clone(), *byte_size));
                         if bytes_removed >= excess_bytes {
-                            collection.byte_size -= bytes_removed_from_col;
                             break;
                         }
                     }
-                    for uuid in uuids_removed {
-                        collection.messages.remove(&uuid);
+                    for msg in uuids_removed {
+                        if let Err(error) = self.bridge.del(msg.0.clone()) {
+                            return Err(StoreError::Db(error))
+                        }
+                        collection.messages.remove(&msg.0);
+                        collection.byte_size -= msg.1;
+                        self.byte_size -= msg.1;
+                        if let Some(event_handle) = &self.listener {
+                            event_handle(EventMsg::MsgBurned(msg.0.clone(), *priority, msg.1));
+                        }
                     }
                     if bytes_removed >= excess_bytes {
                         break;
                     }
                 }
-                for priority in whole_collections_to_removed {
-                    self.collections.remove(&priority);
-                }
-                self.byte_size -= bytes_removed;
             }
+        }
+        if let Err(error) = self.bridge.put(uuid.clone(), &msg) {
+            return Err(StoreError::Db(error))
         }
         // add msg data to collection
         if let Some(collection) = self.collections.get_mut(priority) {
-            collection.byte_size += msg_byte_size;
             collection.messages.insert(uuid.clone(), msg_byte_size);
+            collection.byte_size += msg_byte_size;
         } else {
             let mut collection;
             if let Some(collection_configs) = &self.config.collections {
@@ -207,16 +221,10 @@ impl<B: Bridge> Store<B> {
             collection.messages.insert(uuid.clone(), msg_byte_size);
             self.collections.insert(*priority, collection);
         }
-        if let Err(error) = self.bridge.put(uuid.clone(), &msg) {
-            if let Some(collection) = self.collections.get_mut(priority) {
-                collection.byte_size -= msg_byte_size;
-                collection.messages.remove(&uuid);
-            } else {
-                return Err(StoreError::OutOfSync);
-            }
-            return Err(StoreError::Db(error));
-        }
         self.byte_size += msg_byte_size;
+        if let Some(event_handle) = &self.listener {
+            event_handle(EventMsg::MsgAdded);
+        }
         Ok(())
     }
 
