@@ -114,20 +114,22 @@ impl<B: Bridge> Store<B> {
             }
         }
         let uuid = Rc::new(self.id_manager.new_id(&priority));
-        if let Some(collection) = self.collections.get_mut(&priority) {
-            if let Some(limit) = collection.limit {
-                if msg_byte_size > limit {
-                    return Err(StoreError::ExceedsCollectionLimit);
+        if let Some(collections) = &self.config.collections {
+            if let Some(collection) = collections.get(&priority) {
+                if let Some(limit) = collection.limit {
+                    if msg_byte_size > limit {
+                        return Err(StoreError::ExceedsCollectionLimit);
+                    }
                 }
             }
         }
         // get available byte size
         let mut used_byte_size: u64 = 0;
         for (col_priority, collection) in self.collections.iter() {
-            used_byte_size += collection.byte_size;
             if col_priority < priority {
                 break;
             }
+            used_byte_size += collection.byte_size;
         }
         if let Some(limit) = self.config.limit {
             let available_byte_size = limit - used_byte_size;
@@ -138,28 +140,32 @@ impl<B: Bridge> Store<B> {
         // validate that the new collection size does not exceed collection limit
         if let Some(collection) = self.collections.get_mut(priority) {
             let proposed_byte_size = collection.byte_size + msg_byte_size;
-            if let Some(limit) = collection.limit {
-                if proposed_byte_size > limit {
-                    let excess_bytes = proposed_byte_size - limit;
-                    let mut bytes_removed: u64 = 0;
-                    let mut msgs_removed: Vec<(Rc<Uuid>, ByteSize)> = vec![];
-                    for (uuid, byte_size) in collection.messages.iter() {
-                        bytes_removed += byte_size;
-                        msgs_removed.push((uuid.clone(), *byte_size));
-                        if bytes_removed >= excess_bytes {
-                            break;
-                        }
-                    }
-                    // remove id's from collection
-                    for msg in msgs_removed {
-                        if let Err(error) = self.bridge.del(msg.0.clone()) {
-                            return Err(StoreError::Db(error))
-                        }
-                        collection.messages.remove(&msg.0);
-                        collection.byte_size -= msg.1;
-                        self.byte_size -= msg.1;
-                        if let Some(event_handle) = &self.listener {
-                            event_handle(EventMsg::MsgBurned(msg.0, *priority, msg.1));
+            if let Some(collection_configs) = &self.config.collections {
+                if let Some(collection_config) = collection_configs.get(&priority) {
+                    if let Some(limit) = collection_config.limit {
+                        if proposed_byte_size > limit {
+                            let excess_bytes = proposed_byte_size - limit;
+                            let mut bytes_removed: u64 = 0;
+                            let mut msgs_removed: Vec<(Rc<Uuid>, ByteSize)> = vec![];
+                            for (uuid, byte_size) in collection.messages.iter() {
+                                bytes_removed += byte_size;
+                                msgs_removed.push((uuid.clone(), *byte_size));
+                                if bytes_removed >= excess_bytes {
+                                    break;
+                                }
+                            }
+                            // remove id's from collection
+                            for msg in msgs_removed {
+                                if let Err(error) = self.bridge.del(msg.0.clone()) {
+                                    return Err(StoreError::Db(error))
+                                }
+                                collection.messages.remove(&msg.0);
+                                collection.byte_size -= msg.1;
+                                self.byte_size -= msg.1;
+                                if let Some(event_handle) = &self.listener {
+                                    event_handle(EventMsg::MsgBurned(msg.0, *priority, msg.1));
+                                }
+                            }
                         }
                     }
                 }
@@ -171,6 +177,7 @@ impl<B: Bridge> Store<B> {
             if proposed_byte_size > limit {
                 let excess_bytes = proposed_byte_size - limit;
                 let mut bytes_removed: u64 = 0;
+                let mut collections_to_be_removed: Vec<Priority> = vec![];
                 for (priority, collection) in self.collections.iter_mut().rev() {
                     let mut bytes_removed_from_col: u64 = 0;
                     let mut uuids_removed: Vec<(Rc<Uuid>, ByteSize)> = vec![];
@@ -193,9 +200,15 @@ impl<B: Bridge> Store<B> {
                             event_handle(EventMsg::MsgBurned(msg.0.clone(), *priority, msg.1));
                         }
                     }
+                    if collection.messages.len() == 0 {
+                        collections_to_be_removed.push(*priority);
+                    }
                     if bytes_removed >= excess_bytes {
                         break;
                     }
+                }
+                for priority in collections_to_be_removed {
+                    self.collections.remove(&priority);
                 }
             }
         }
@@ -261,7 +274,7 @@ impl<B: Bridge> Store<B> {
     }
 
     pub fn get(&self) -> Result<Option<Packet>, StoreError> {
-        if let Some((_prioriy, col_ref)) = self.collections.iter().next() {
+        if let Some((_prioriy, col_ref)) = self.collections.iter().rev().next() {
             if let Some((uuid, _byte_size)) = col_ref.messages.iter().next() {
                 let id = uuid.to_string();
                 return match self.bridge.get(uuid.clone()) {
@@ -284,7 +297,7 @@ impl<B: Bridge> Store<B> {
         let uuid_removed: Rc<Uuid>;
         let mut bytes_removed = 0;
         let mut packet: Option<Packet> = None;
-        if let Some((priority, collection)) = self.collections.iter_mut().next() {
+        if let Some((priority, collection)) = self.collections.iter_mut().rev().next() {
             if let Some((uuid, byte_size)) = collection.messages.iter().next() {
                 let id = uuid.to_string();
                 uuid_option = Some(uuid.clone());
@@ -350,3 +363,172 @@ impl<B: Bridge> Store<B> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::db_bridge::LevelDbBridge;
+
+    use std::collections::HashMap;
+    use super::*;
+    use enum_as_inner::EnumAsInner;
+    use laboratory::{Suite, NullState, LabResult, describe, expect};
+    use tempdir::TempDir;
+
+    #[derive(EnumAsInner)]
+     enum State {
+         Count(u32),
+         Store(Store<LevelDbBridge>)
+     } 
+
+    #[test]
+    fn laboratory() -> LabResult {
+        describe("msg-store", |suite| {
+            suite.before_all(|state| {
+                state.insert("/count", State::Count(0));
+            }).before_each(|state| {
+                let count = state
+                    .get("/count").unwrap()
+                    .as_count().unwrap();
+                let config = StoreConfig {
+                    dir: TempDir::new(&format!("{}", count)).unwrap().into_path(),
+                    limit: None,
+                    collections: None
+                };
+                let db = LevelDbBridge::new(&config.dir).unwrap();
+                let store = Store::new(config, db).unwrap();
+                state.insert("/store", State::Store(store));
+            }).after_each(|state| {
+                // let mut state = state_map.get_mut("/count").unwrap(); 
+                // let count = state.
+                let count = state
+                    .get_mut("/count").unwrap()
+                    .as_count_mut().unwrap();
+                *count += 1; 
+            }).after_all(|state| {
+                let count = state.get("/count").unwrap().as_count().unwrap();
+                println!("count = {}", count);
+            }).it("should add one msg to a collection and update byte_sizes", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                let msg = "0123456789";
+                store.add(&0, &msg.as_bytes().to_vec()).unwrap();
+                let collection = store.collections.get(&0).unwrap();
+                expect(store.byte_size).to_be(10)?;
+                expect(collection.byte_size).to_be(10)?;
+                expect(collection.messages.len()).to_equal(1)
+            }).it("should remove collection and total byte size of store", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                let msg = "0123456789";
+                store.add(&0, &msg.as_bytes().to_vec()).unwrap();
+                let id_str = {
+                    let collection = store.collections.get(&0).unwrap();
+                    expect(store.byte_size).to_be(10)?;
+                    expect(collection.byte_size).to_be(10)?;
+                    expect(collection.messages.len()).to_equal(1)?;
+                    let msg = collection.messages.iter().next().unwrap(); 
+                    msg.0.to_string()
+                };
+                store.del(&id_str).unwrap();
+                let collection = store.collections.get(&0);
+                expect(store.byte_size).to_be(0)?;
+                expect(collection.is_none()).to_be(true)
+            }).it("should not remove collection but byte size of collection & store", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                let msg = "0123456789";
+                store.add(&0, &msg.as_bytes().to_vec()).unwrap();
+                store.add(&0, &msg.as_bytes().to_vec()).unwrap();
+                let id_str = {
+                    let collection = store.collections.get(&0).unwrap();
+                    expect(store.byte_size).to_be(20)?;
+                    expect(collection.byte_size).to_be(20)?;
+                    expect(collection.messages.len()).to_equal(2)?;
+                    let msg = collection.messages.iter().next().unwrap(); 
+                    msg.0.to_string()
+                };
+                store.del(&id_str).unwrap();
+                let collection = store.collections.get(&0).unwrap();
+                expect(store.byte_size).to_be(10)?;
+                expect(collection.byte_size).to_be(10)?;
+                expect(collection.messages.len()).to_be(1)
+            }).it("should remove a lower priority and add a higher priority msg", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                store.config.limit = Some(10);
+                let msg = "0123456789";
+                store.add(&0, &msg.as_bytes().to_vec()).unwrap();
+                store.add(&1, &msg.as_bytes().to_vec()).unwrap();
+                let collection_1 = store.collections.get(&0);
+                let collection_2 = store.collections.get(&1).unwrap(); 
+                expect(store.byte_size).to_be(10)?;
+                expect(collection_2.byte_size).to_be(10)?;
+                expect(collection_2.messages.len()).to_equal(1)?;
+                expect(collection_1.is_none()).to_be(true)
+            }).it("should get highest priority msg", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                let msg_1 = "0123456789";
+                let msg_2 = "0987654321";
+                store.add(&0, &msg_1.as_bytes().to_vec()).unwrap();
+                store.add(&1, &msg_2.as_bytes().to_vec()).unwrap();
+                let collection = store.collections.get(&1).unwrap();
+                let data = collection.messages.iter().next().unwrap();
+                let id_str = data.0.to_string();
+                let packet = store.get().unwrap().unwrap();
+                expect(packet.id).to_be(id_str)?;
+                expect(String::from_utf8(packet.msg).unwrap().as_str()).to_be(msg_2)
+            }).it("should reject messages that are to large", |spec| {
+                let mut state = spec.state
+                    .borrow_mut();
+                let store = state
+                    .get_mut("/store")
+                    .unwrap()
+                    .as_store_mut()
+                    .unwrap();
+                store.config.limit = Some(20);
+                {
+                    let collection_config = CollectionConfig {
+                        priority: 0,
+                        limit: Some(10)
+                    };
+                    let mut collections = HashMap::new();
+                    collections.insert(0, collection_config);
+                    store.config.collections = Some(collections);
+                }
+                let msg_1 = "123456789012345678901".as_bytes().to_vec();
+                let msg_2 = "12345678901".as_bytes().to_vec();
+                let msg_3 = "1234567890".as_bytes().to_vec();
+                expect(store.add(&0, &msg_1).is_err()).to_be(true)?;
+                expect(store.add(&0, &msg_2).is_err()).to_be(true)?;
+                expect(store.add(&0, &msg_3).is_ok()).to_be(true)
+            });
+        }).run()
+    }
+}
+

@@ -15,7 +15,8 @@ serde = { version = "1.0.123", features = ["derive"] }
 
 [dev-dependencies]
 bencher = "0.1.5"
-laboratory = "1.3.0"
+enum-as-inner = "0.3.3"
+laboratory = "2"
 tempdir = "0.3.7"
 
 [[bench]]

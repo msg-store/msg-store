@@ -10,7 +10,6 @@ pub type Messages = BTreeMap<Rc<Uuid>, ByteSize>;
 pub struct Collection {
     pub priority: Priority,
     pub byte_size: ByteSize,
-    pub limit: Option<ByteSize>,
     pub messages: Messages,
 }
 impl Collection {
@@ -18,7 +17,6 @@ impl Collection {
         Collection {
             priority: config.priority,
             byte_size: 0,
-            limit: config.limit,
             messages: BTreeMap::new(),
         }
     }
