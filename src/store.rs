@@ -441,19 +441,12 @@ mod tests {
             byte_size: 100
         };
         assert_eq!(true, insert(&mut store, &msg).is_err());
-
         store.group_defaults.insert(1, GroupDefaults { max_byte_size: Some(99) });
-
         assert_eq!(true, insert(&mut store, &msg).is_err());
-
         msg.byte_size = 99;
-
         assert_eq!(true, insert(&mut store, &msg).is_ok());
-
         msg.priority = 0;
-
         assert_eq!(true, insert(&mut store, &msg).is_err());
-
     }
 
     #[test]
