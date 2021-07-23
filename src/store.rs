@@ -254,13 +254,13 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
             let mut groups_removed: Vec<u64> = vec![];
             for (priority, group) in store.groups_map.iter_mut() {
                 let mut ids_removed_from_group: Vec<ID> = vec![];
-                let mut remove_group = false;
+                let mut remove_group = true;
                 for (id, msg_byte_size) in group.msgs_map.iter() {
                     if priority > &msg.priority {
                         break;
                     }
                     if bytes_removed_from_store >= bytes_to_remove_from_store {
-                        remove_group = true;
+                        remove_group = false;
                         break;
                     }
                     ids_removed_from_group.push(*id);
@@ -464,14 +464,25 @@ mod tests {
             priority: 0,
             byte_size: 10
         };
-        let msg_id = insert(&mut store, &msg).unwrap().id;
-        let removed_id = insert(&mut store, &msg).unwrap().ids_removed[0];
-        let group = store.groups_map.get(&0).unwrap();
-        assert_eq!(msg_id, removed_id);
+        let result_1 = insert(&mut store, &msg).unwrap();
+        let result_2 = insert(&mut store, &msg).unwrap();
+        {
+            let group = store.groups_map.get(&0).unwrap();
+            assert_eq!(result_1.id, result_2.ids_removed[0]);
+            assert_eq!(10, store.byte_size);
+            assert_eq!(10, group.byte_size);
+            assert_eq!(1, group.msgs_map.len());
+        }
+        msg.priority = 1;
+        let result_3 = insert(&mut store, &msg).unwrap();
+        let group_0 = store.groups_map.get(&0);
+        let group_1 = store.groups_map.get(&1).unwrap();
+        assert_eq!(result_2.id, result_3.ids_removed[0]);
         assert_eq!(10, store.byte_size);
-        assert_eq!(10, group.byte_size);
-        assert_eq!(1, group.msgs_map.len());
-
+        assert_eq!(10, group_1.byte_size);
+        assert_eq!(1, group_1.msgs_map.len());
+        assert_eq!(true, group_0.is_none());
+        assert_eq!(1, store.groups_map.len());
     }
 
 }
