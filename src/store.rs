@@ -360,29 +360,13 @@ pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
    Ok(next_id) 
 }
 
-pub fn import_msg(store: &mut Store, id: Option<ID>, msg: &Msg) -> Result<(), String> {
-    let id = {
-        if let Some(id) = id {
-            id
-        } else {
-            generate_id(store, msg)
-        }
-    };
-    // TODO: FIX: This may push out msgs that may have higher priority withing the same group
-    prepare_store(store, &msg)?;
-    set_working_group(store, &msg.priority);
-    insert_msg_in_working_group(store, &msg.byte_size, &id);
-    update_working_group(store);
-    Ok(())
-}
-
 // Store Actions Finish
 
 
 #[cfg(test)]
 mod tests {
 
-    use crate::store::{GroupDefaults, ID, Msg, delete, generate_store, get_next, insert};
+    use crate::store::{GroupDefaults, Msg, delete, generate_store, get_next, insert};
 
     #[test]
     fn should_insert_two_msgs_and_return_the_oldest_highest_msg() {
