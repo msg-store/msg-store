@@ -409,6 +409,12 @@ mod tests {
         assert_eq!(true, insert(&mut store, &msg).is_ok());
         msg.priority = 0;
         assert_eq!(true, insert(&mut store, &msg).is_err());
+        {
+            let group = store.groups_map.get_mut(&1).unwrap();
+            group.max_byte_size = Some(9);
+        }
+        msg.byte_size = 10;
+        assert_eq!(true, insert(&mut store, &msg).is_err());
     }
 
     #[test]
