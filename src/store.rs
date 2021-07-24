@@ -214,7 +214,7 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
                 }
             };
             let mut bytes_removed_from_group = 0;
-            for (id, msg_byte_size) in working_group.group.msgs_map.iter() {
+            for (id, msg_byte_size) in working_group.group.msgs_map.iter().rev() {
                 if bytes_removed_from_group >= bytes_to_remove_from_group {
                     break;
                 }
@@ -255,7 +255,7 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
             for (priority, group) in store.groups_map.iter_mut() {
                 let mut ids_removed_from_group: Vec<ID> = vec![];
                 let mut remove_group = true;
-                for (id, msg_byte_size) in group.msgs_map.iter() {
+                for (id, msg_byte_size) in group.msgs_map.iter().rev() {
                     if priority > &msg.priority {
                         break;
                     }
@@ -535,6 +535,24 @@ mod tests {
         assert_eq!(0, sequence_1);
         assert_eq!(true, timestamp_2 == u128::MAX);
         assert_eq!(1, sequence_2);
+    }
+
+    #[test]
+    fn it_should_removed_bytes_from_working_group() {
+        let mut store = generate_store();
+        store.group_defaults.insert(0, GroupDefaults { max_byte_size: Some(10) });
+        let mut ids_inserted: Vec<ID> = vec![];
+        for _ in 1..=5 {
+            let result = insert(&mut store, &Msg { priority: 0, byte_size: 2 }).unwrap();
+            ids_inserted.push(result.id);
+        }
+        let result_1 = insert(&mut store, &Msg { priority: 0, byte_size: 4 }).unwrap();
+        assert_eq!(ids_inserted[0], result_1.ids_removed[0]);
+        assert_eq!(ids_inserted[1], result_1.ids_removed[1]);
+        store.group_defaults.insert(1, GroupDefaults { max_byte_size: Some(10) });
+        let result_2 = insert(&mut store, &Msg { priority: 1, byte_size: 5 }).unwrap();
+        let result_3 = insert(&mut store, &Msg { priority: 1, byte_size: 6 }).unwrap();
+        assert_eq!(result_2.id, result_3.ids_removed[0]);
     }
 
 }
