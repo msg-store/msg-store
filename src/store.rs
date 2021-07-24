@@ -202,15 +202,15 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
                 return Err(format!("Message is too large for store."));
             }
         }
-        if max_byte_size > max_byte_size {
+        if msg.byte_size > max_byte_size {
             return Err(format!("Message is too large for priority group."))
         }
-        if max_byte_size < working_group.group.byte_size + max_byte_size {
+        if max_byte_size < working_group.group.byte_size + msg.byte_size {
             let bytes_to_remove_from_group = {
                 if working_group.group.byte_size <= msg.byte_size {
                     msg.byte_size
                 } else {
-                    (working_group.group.byte_size + msg.byte_size) + max_byte_size
+                    (working_group.group.byte_size + msg.byte_size) - max_byte_size
                 }
             };
             let mut bytes_removed_from_group = 0;
@@ -232,12 +232,12 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
         if msg.byte_size > max_byte_size {
             return Err(format!("Message is too large for store."));
         }
-        if max_byte_size < (store.byte_size + max_byte_size) {
+        if max_byte_size < (store.byte_size + msg.byte_size) {
             let bytes_to_remove_from_store = {
                 if store.byte_size <= msg.byte_size {
                     msg.byte_size
                 } else {
-                    (store.byte_size + msg.byte_size) + max_byte_size
+                    (store.byte_size + msg.byte_size) - max_byte_size
                 }
             };
             let mut bytes_from_lower_priority_groups = 0;
@@ -360,42 +360,18 @@ pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
    Ok(next_id) 
 }
 
-pub fn import_msg(store: &mut Store, data: &ImportData) -> Result<(), String> {
-    let msg_id: ID;
-    let msg_priority: u64;
-    let msg_byte_size: u64;
-    if let Some(data_byte_size) = data.byte_size {
-        msg_byte_size = data_byte_size;
-    } else {
-        if let Some(msg) = &data.msg {
-            msg_byte_size = msg.len() as u64;
+pub fn import_msg(store: &mut Store, id: Option<ID>, msg: &Msg) -> Result<(), String> {
+    let id = {
+        if let Some(id) = id {
+            id
         } else {
-            return Err(format!("The msg byte size could not be determined"));
+            generate_id(store, msg)
         }
-    }
-    if let Some(data_id) = data.id {
-        msg_id = data_id;
-        msg_priority = msg_id.priority;
-    } else {
-        if let Some(data_priority) = data.priority {
-            msg_priority = data_priority;
-        } else {
-            return Err(format!("The msg priority could not be determined"));
-        }
-        let msg = Msg {
-            priority: msg_priority,
-            byte_size: 0
-        };
-        msg_id = generate_id(store, &msg);
-    }
-    let msg = Msg {
-        priority: msg_priority,
-        byte_size: msg_byte_size
     };
     // TODO: FIX: This may push out msgs that may have higher priority withing the same group
     prepare_store(store, &msg)?;
-    set_working_group(store, &msg_priority);
-    insert_msg_in_working_group(store, &msg_byte_size, &msg_id);
+    set_working_group(store, &msg.priority);
+    insert_msg_in_working_group(store, &msg.byte_size, &id);
     update_working_group(store);
     Ok(())
 }
