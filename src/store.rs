@@ -18,9 +18,9 @@ impl Ord for ID {
             Ordering::Less
         } else {
             if self.timestamp < other.timestamp {
-                Ordering::Less
-            } else if self.timestamp > other.timestamp {
                 Ordering::Greater
+            } else if self.timestamp > other.timestamp {
+                Ordering::Less
             } else {
                 if self.sequence < other.sequence {
                     Ordering::Greater
@@ -42,9 +42,9 @@ impl PartialOrd for ID {
             Some(Ordering::Less)
         } else {
             if self.timestamp < other.timestamp {
-                Some(Ordering::Less)
-            } else if self.timestamp > other.timestamp {
                 Some(Ordering::Greater)
+            } else if self.timestamp > other.timestamp {
+                Some(Ordering::Less)
             } else {
                 if self.sequence < other.sequence {
                     Some(Ordering::Greater)
@@ -366,7 +366,9 @@ pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
 #[cfg(test)]
 mod tests {
 
-    use crate::store::{GroupDefaults, Msg, delete, generate_store, get_next, insert};
+    use std::cmp::Ordering;
+
+    use crate::store::{GroupDefaults, Msg, delete, generate_store, generate_id, ID, get_next, insert, convert_id_to_string, convert_string_to_id};
 
     #[test]
     fn should_insert_two_msgs_and_return_the_oldest_highest_msg() {
@@ -413,6 +415,7 @@ mod tests {
             let group = store.groups_map.get_mut(&1).unwrap();
             group.max_byte_size = Some(9);
         }
+        msg.priority = 1;
         msg.byte_size = 10;
         assert_eq!(true, insert(&mut store, &msg).is_err());
     }
@@ -457,6 +460,81 @@ mod tests {
         assert_eq!(false, delete(&mut store, &insert_2.id).unwrap());
         assert_eq!(0, store.byte_size);
         assert_eq!(0, store.groups_map.len());
+    }
+
+    #[test]
+    fn should_format_between_id_and_string() {
+        let id = ID {
+            priority: 0,
+            timestamp: 0,
+            sequence: 0
+        };
+        let text = convert_id_to_string(&id);
+        let from_text = convert_string_to_id(&text);
+        assert_eq!(format!("0-0-0"), text);
+        assert_eq!(id, from_text);
+    }
+
+    #[test]
+    fn ids_should_be_sorted_by_pri_then_timestamp() {
+        let id_1 = ID {
+            priority: 1,
+            timestamp: 10,
+            sequence: 10
+        };
+        let id_2 = ID {
+            priority: 2,
+            timestamp: 10,
+            sequence: 10
+        };
+        let id_3 = ID {
+            priority: 2,
+            timestamp: 9,
+            sequence: 1
+        };
+        let id_4 = ID {
+            priority: 2,
+            timestamp: 9,
+            sequence: 0
+        };
+        let id_5 = ID {
+            priority: 2,
+            timestamp: 9,
+            sequence: 0
+        };
+        assert_eq!(Ordering::Greater, id_2.cmp(&id_1));
+        assert_eq!(Ordering::Greater, id_3.cmp(&id_2));
+        assert_eq!(Ordering::Greater, id_4.cmp(&id_3));
+        assert_eq!(Ordering::Less, id_1.cmp(&id_2));
+        assert_eq!(Ordering::Less, id_2.cmp(&id_3));
+        assert_eq!(Ordering::Less, id_3.cmp(&id_4));
+        assert_eq!(Ordering::Equal, id_4.cmp(&id_5));
+        assert_eq!(Some(Ordering::Greater), id_2.partial_cmp(&id_1));
+        assert_eq!(Some(Ordering::Greater), id_3.partial_cmp(&id_2));
+        assert_eq!(Some(Ordering::Greater), id_4.partial_cmp(&id_3));
+        assert_eq!(Some(Ordering::Less), id_1.partial_cmp(&id_2));
+        assert_eq!(Some(Ordering::Less), id_2.partial_cmp(&id_3));
+        assert_eq!(Some(Ordering::Less), id_3.partial_cmp(&id_4));
+        assert_eq!(Some(Ordering::Equal), id_4.partial_cmp(&id_5));
+    }
+
+    #[test]
+    pub fn timesamp_sequence_should_reset_with_each_timestamp() {
+        let mut store = generate_store();
+        store.timestamp = u128::MIN;
+        store.timestamp_sequence = 10;
+        generate_id(&mut store, &Msg { priority: 0, byte_size: 1 });
+        let timestamp_1 = store.timestamp;
+        let sequence_1 = store.timestamp_sequence;
+        store.timestamp = u128::MAX;
+        store.timestamp_sequence = 0;
+        generate_id(&mut store, &Msg { priority: 0, byte_size: 1 });
+        let timestamp_2 = store.timestamp;
+        let sequence_2 = store.timestamp_sequence;
+        assert_eq!(true, timestamp_1 > u128::MIN);
+        assert_eq!(0, sequence_1);
+        assert_eq!(true, timestamp_2 == u128::MAX);
+        assert_eq!(1, sequence_2);
     }
 
 }
