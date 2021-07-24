@@ -327,10 +327,12 @@ pub fn insert(store: &mut Store, msg: &Msg) -> Result<InsertResult, String> {
     Ok(result)
 }
 
-pub fn delete(store: &mut Store, id: &ID) -> Result<(), String> {
+pub fn delete(store: &mut Store, id: &ID) -> Result<bool, String> {
     let mut remove_group = false;
+    let mut msg_removed = false;
     if let Some(group) = store.groups_map.get_mut(&id.priority) {
        if let Some(msg_byte_size) = group.msgs_map.remove(&id) {
+           msg_removed = true;
             group.byte_size -= msg_byte_size;
             store.byte_size -= msg_byte_size;
             if group.msgs_map.len() == 0 {
@@ -341,7 +343,7 @@ pub fn delete(store: &mut Store, id: &ID) -> Result<(), String> {
     if remove_group {
         store.groups_map.remove(&id.priority);
     }
-    Ok(())
+    Ok(msg_removed)
 }
 
 pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
@@ -476,6 +478,19 @@ mod tests {
         assert_eq!(1, group_1.msgs_map.len());
         assert_eq!(true, group_0.is_none());
         assert_eq!(1, store.groups_map.len());
+    }
+
+    #[test]
+    fn should_removed_msgs_from_store() {
+        let mut store = generate_store();
+        let msg = Msg { priority: 0, byte_size: 10 };
+        let insert_1 = insert(&mut store, &msg).unwrap();
+        let insert_2 = insert(&mut store, &msg).unwrap();
+        assert_eq!(true, delete(&mut store, &insert_1.id).unwrap());
+        assert_eq!(true, delete(&mut store, &insert_2.id).unwrap());
+        assert_eq!(false, delete(&mut store, &insert_2.id).unwrap());
+        assert_eq!(0, store.byte_size);
+        assert_eq!(0, store.groups_map.len());
     }
 
 }
