@@ -16,20 +16,16 @@ impl Ord for ID {
             Ordering::Greater
         } else if self.priority < other.priority {
             Ordering::Less
+        } else if self.timestamp < other.timestamp {
+            Ordering::Greater
+        } else if self.timestamp > other.timestamp {
+            Ordering::Less
+        } else if self.sequence < other.sequence {
+            Ordering::Greater
+        } else if self.sequence > other.sequence {
+            Ordering::Less
         } else {
-            if self.timestamp < other.timestamp {
-                Ordering::Greater
-            } else if self.timestamp > other.timestamp {
-                Ordering::Less
-            } else {
-                if self.sequence < other.sequence {
-                    Ordering::Greater
-                } else if self.sequence > other.sequence {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
-                }
-            }
+            Ordering::Equal
         }
     }
 }
@@ -40,20 +36,16 @@ impl PartialOrd for ID {
             Some(Ordering::Greater)
         } else if self.priority < other.priority {
             Some(Ordering::Less)
+        } else if self.timestamp < other.timestamp {
+            Some(Ordering::Greater)
+        } else if self.timestamp > other.timestamp {
+            Some(Ordering::Less)
+        } else if self.sequence < other.sequence {
+            Some(Ordering::Greater)
+        } else if self.sequence > other.sequence {
+            Some(Ordering::Less)
         } else {
-            if self.timestamp < other.timestamp {
-                Some(Ordering::Greater)
-            } else if self.timestamp > other.timestamp {
-                Some(Ordering::Less)
-            } else {
-                if self.sequence < other.sequence {
-                    Some(Ordering::Greater)
-                } else if self.sequence > other.sequence {
-                    Some(Ordering::Less)
-                } else {
-                    Some(Ordering::Equal)
-                }
-            }
+            Some(Ordering::Equal)
         }
     }
 }
@@ -71,19 +63,13 @@ pub fn convert_id_to_string(id: &ID) -> String {
 }
 
 pub fn convert_string_to_id(text: &str) -> ID {
-    let values: Vec<&str> = text.split("-").collect();
-    let priority: u64 = values[0].parse().expect(&format!(
-        "Convert string to id error: Could not convert {} to priority.",
-        values[0]
-    ));
-    let timestamp: u128 = values[1].parse().expect(&format!(
-        "Convert string to id error: Could not convert {} to timestamp.",
-        values[0]
-    ));
-    let sequence: u64 = values[2].parse().expect(&format!(
-        "Convert string to id error: Could not convert {} to index.",
-        values[0]
-    ));
+    let values: Vec<&str> = text.split('-').collect();
+    let priority: u64 = values[0].parse().unwrap_or_else(|_| panic!("Convert string to id error: Could not convert {} to priority.",
+        values[0]));
+    let timestamp: u128 = values[1].parse().unwrap_or_else(|_| panic!("Convert string to id error: Could not convert {} to timestamp.",
+        values[0]));
+    let sequence: u64 = values[2].parse().unwrap_or_else(|_| panic!("Convert string to id error: Could not convert {} to index.",
+        values[0]));
     ID {
         priority,
         timestamp,
@@ -100,9 +86,9 @@ fn generate_id(store: &mut Store, msg: &Msg) -> ID {
         store.timestamp_sequence += 1;
     }
     ID {
-        priority: msg.priority.clone(),
-        timestamp: store.timestamp.clone(),
-        sequence: store.timestamp_sequence.clone(),
+        priority: msg.priority,
+        timestamp: store.timestamp,
+        sequence: store.timestamp_sequence,
     }
 }
 // ID Finish
@@ -176,32 +162,30 @@ fn set_working_group(store: &mut Store, priority: &u64) {
                 group,
             },
         );
+    } else if let Some(defaults) = store.group_defaults.get(priority) {
+        store.working_group.insert(
+            0,
+            WorkingGroup {
+                priority: *priority,
+                group: Group {
+                    max_byte_size: defaults.max_byte_size,
+                    byte_size: 0,
+                    msgs_map: BTreeMap::new(),
+                },
+            },
+        );
     } else {
-        if let Some(defaults) = store.group_defaults.get(&priority) {
-            store.working_group.insert(
-                0,
-                WorkingGroup {
-                    priority: *priority,
-                    group: Group {
-                        max_byte_size: defaults.max_byte_size,
-                        byte_size: 0,
-                        msgs_map: BTreeMap::new(),
-                    },
+        store.working_group.insert(
+            0,
+            WorkingGroup {
+                priority: *priority,
+                group: Group {
+                    max_byte_size: None,
+                    byte_size: 0,
+                    msgs_map: BTreeMap::new(),
                 },
-            );
-        } else {
-            store.working_group.insert(
-                0,
-                WorkingGroup {
-                    priority: *priority,
-                    group: Group {
-                        max_byte_size: None,
-                        byte_size: 0,
-                        msgs_map: BTreeMap::new(),
-                    },
-                },
-            );
-        }
+            },
+        );
     }
 }
 
@@ -215,7 +199,7 @@ fn update_working_group(store: &mut Store) {
 fn reject_if_msg_is_too_large_for_store(store: &Store, msg: &Msg) -> Result<(), String> {
     if let Some(store_max_byte_size) = store.max_byte_size {
         if msg.byte_size > store_max_byte_size {
-            return Err(format!("Message is too large for store."));
+            return Err("Message is too large for store.".to_string());
         }
     }
     Ok(())
@@ -223,7 +207,7 @@ fn reject_if_msg_is_too_large_for_store(store: &Store, msg: &Msg) -> Result<(), 
 
 fn reject_if_msg_is_too_large_for_group(max_byte_size: &u64, msg: &Msg) -> Result<(), String> {
     if &msg.byte_size > max_byte_size {
-        return Err(format!("Message is too large for priority group."));
+        return Err("Message is too large for priority group.".to_string());
     }
     Ok(())
 }
@@ -262,7 +246,7 @@ fn remove_designated_ids_from_group(
     msgs_removed: &Vec<ID>,
 ) {
     for id in msgs_removed.iter() {
-        group.msgs_map.remove(&id);
+        group.msgs_map.remove(id);
     }
     store.byte_size -= bytes_removed_from_group;
     group.byte_size -= bytes_removed_from_group;
@@ -276,11 +260,11 @@ fn prune_working_group_if_needed(
     msg: &Msg,
 ) {
     if should_prune(
-        &max_byte_size,
+        max_byte_size,
         &(working_group.group.byte_size + msg.byte_size),
     ) {
         let bytes_to_remove_from_group = get_bytes_to_remove(
-            &max_byte_size,
+            max_byte_size,
             &working_group.group.byte_size,
             &msg.byte_size,
         );
@@ -355,14 +339,14 @@ fn remove_msgs_and_groups(
             groups_removed.push(*priority);
         } else {
             for id in ids_removed_from_group.iter() {
-                group.msgs_map.remove(&id);
+                group.msgs_map.remove(id);
             }
             group.byte_size -= bytes_removed_from_group;
         }
         msgs_removed.append(&mut ids_removed_from_group);
     }
     for priority in groups_removed.iter() {
-        store.groups_map.remove(&priority);
+        store.groups_map.remove(priority);
     }
 }
 
@@ -380,12 +364,12 @@ fn reject_if_lacking_priority(
     bytes_to_remove_from_store: &u64,
 ) -> Result<(), String> {
     let is_lacking_priority = msg_is_lacking_priority(
-        &bytes_from_lower_priority_groups,
+        bytes_from_lower_priority_groups,
         &working_group.group.byte_size,
-        &bytes_to_remove_from_store,
+        bytes_to_remove_from_store,
     );
     if is_lacking_priority {
-        return Err(format!("The message lacks priority."));
+        return Err("The message lacks priority.".to_string());
     }
     Ok(())
 }
@@ -398,7 +382,7 @@ fn prune_groups(
 ) -> Result<(), String> {
     if let Some(max_byte_size) = store.max_byte_size {
         if msg.byte_size > max_byte_size {
-            return Err(format!("Message is too large for store."));
+            return Err("Message is too large for store.".to_string());
         }
         if max_byte_size < (store.byte_size + msg.byte_size) {
             let bytes_to_remove_from_store =
@@ -443,11 +427,11 @@ fn insert_msg_in_working_group(store: &mut Store, msg_byte_size: &u64, id: &ID) 
 }
 
 fn generate_insert_result(store: &mut Store, id: ID) -> InsertResult {
-    let result = InsertResult {
+    
+    InsertResult {
         id,
         ids_removed: store.msgs_removed.remove(&0).unwrap(),
-    };
-    result
+    }
 }
 
 pub fn insert(store: &mut Store, msg: &Msg) -> Result<InsertResult, String> {
@@ -464,11 +448,11 @@ pub fn delete(store: &mut Store, id: &ID) -> Result<bool, String> {
     let mut remove_group = false;
     let mut msg_removed = false;
     if let Some(group) = store.groups_map.get_mut(&id.priority) {
-        if let Some(msg_byte_size) = group.msgs_map.remove(&id) {
+        if let Some(msg_byte_size) = group.msgs_map.remove(id) {
             msg_removed = true;
             group.byte_size -= msg_byte_size;
             store.byte_size -= msg_byte_size;
-            if group.msgs_map.len() == 0 {
+            if group.msgs_map.is_empty() {
                 remove_group = true;
             }
         }
@@ -483,7 +467,7 @@ pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
     if let Some((_priority, group)) = store.groups_map.iter().rev().next() {
         return Ok(group.msgs_map.keys().rev().next().cloned());
     } else {
-        return Ok(None);
+        Ok(None)
     }
 }
 
@@ -611,7 +595,7 @@ mod tests {
         };
         let text = convert_id_to_string(&id);
         let from_text = convert_string_to_id(&text);
-        assert_eq!(format!("0-0-0"), text);
+        assert_eq!("0-0-0".to_string(), text);
         assert_eq!(id, from_text);
     }
 
