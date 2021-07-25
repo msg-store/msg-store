@@ -192,113 +192,149 @@ fn update_working_group(store: &mut Store) {
     store.groups_map.insert(working_group.priority, working_group.group);
 }
 
-// Store Actions Start
-fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
-    let working_group = store.working_group.get_mut(&0).unwrap();
-    let mut msgs_removed: Vec<ID> = vec![];
-    if let Some(max_byte_size) = working_group.group.max_byte_size {
-        if let Some(store_max_byte_size) = store.max_byte_size {
-            if msg.byte_size > store_max_byte_size {
-                return Err(format!("Message is too large for store."));
-            }
-        }
-        if msg.byte_size > max_byte_size {
-            return Err(format!("Message is too large for priority group."))
-        }
-        if max_byte_size < working_group.group.byte_size + msg.byte_size {
-            let bytes_to_remove_from_group = {
-                if working_group.group.byte_size <= msg.byte_size {
-                    msg.byte_size
-                } else {
-                    (working_group.group.byte_size + msg.byte_size) - max_byte_size
-                }
-            };
-            let mut bytes_removed_from_group = 0;
-            for (id, msg_byte_size) in working_group.group.msgs_map.iter().rev() {
-                if bytes_removed_from_group >= bytes_to_remove_from_group {
-                    break;
-                }
-                msgs_removed.push(*id);
-                bytes_removed_from_group += msg_byte_size;
-            }
-            for id in msgs_removed.iter() {
-                working_group.group.msgs_map.remove(&id);
-            }
-            store.byte_size -= bytes_removed_from_group;
-            working_group.group.byte_size -= bytes_removed_from_group;
+fn reject_if_msg_is_too_large_for_store(store: &Store, msg: &Msg) -> Result<(), String> {
+    if let Some(store_max_byte_size) = store.max_byte_size {
+        if msg.byte_size > store_max_byte_size {
+            return Err(format!("Message is too large for store."));
         }
     }
+    Ok(())
+}
+
+fn reject_if_msg_is_too_large_for_group(max_byte_size: &u64, msg: &Msg) -> Result<(), String> {
+    if &msg.byte_size > max_byte_size {
+        return Err(format!("Message is too large for priority group."))
+    }
+    Ok(())
+}
+
+fn get_bytes_to_remove(max_byte_size: &u64, byte_size: &u64, msg_byte_size: &u64) -> u64 {
+    if byte_size <= msg_byte_size {
+        *msg_byte_size
+    } else {
+        (byte_size + msg_byte_size) - max_byte_size
+    }
+}
+
+fn should_prune(max_byte_size: &u64, new_byte_size: &u64) -> bool {
+    max_byte_size < new_byte_size
+}
+
+fn indentify_msgs_to_remove_from_group(msgs_map: &BTreeMap<ID, u64>, bytes_to_remove_from_group: &u64, bytes_removed_from_group: &mut u64, msgs_removed: &mut Vec<ID>) {
+    for (id, msg_byte_size) in msgs_map.iter().rev() {
+        if *bytes_removed_from_group >= *bytes_to_remove_from_group {
+            break;
+        }
+        msgs_removed.push(*id);
+        *bytes_removed_from_group += msg_byte_size;
+    }
+}
+
+fn remove_designated_ids_from_group(store: &mut Store, group: &mut Group, bytes_removed_from_group: &u64, msgs_removed: &Vec<ID>) {
+    for id in msgs_removed.iter() {
+        group.msgs_map.remove(&id);
+    }
+    store.byte_size -= bytes_removed_from_group;
+    group.byte_size -= bytes_removed_from_group;
+}
+
+fn prune_working_group_if_needed(store: &mut Store, working_group: &mut WorkingGroup, max_byte_size: &u64, msgs_removed: &mut Vec<ID>, msg: &Msg) {
+    if should_prune(&max_byte_size, &(working_group.group.byte_size + msg.byte_size)) {
+        let bytes_to_remove_from_group = get_bytes_to_remove(&max_byte_size, &working_group.group.byte_size, &msg.byte_size);
+        let mut bytes_removed_from_group = 0;
+        indentify_msgs_to_remove_from_group(&working_group.group.msgs_map, &bytes_to_remove_from_group, &mut bytes_removed_from_group, msgs_removed);
+        remove_designated_ids_from_group(store, &mut working_group.group, &bytes_removed_from_group, msgs_removed);
+    }
+}
+
+fn prune_working_group(store: &mut Store, working_group: &mut WorkingGroup, msg: &Msg, msgs_removed: &mut Vec<ID>) -> Result<(), String> {
+    if let Some(max_byte_size) = working_group.group.max_byte_size {
+        reject_if_msg_is_too_large_for_store(store, msg)?;
+        reject_if_msg_is_too_large_for_group(&max_byte_size, msg)?;
+        prune_working_group_if_needed(store, working_group, &max_byte_size, msgs_removed, msg);
+    }
+    Ok(())
+}
+
+fn get_bytes_located_in_lower_priority_groups(store: &Store, bytes_to_remove_from_store: &u64, msg: &Msg) -> u64 {
+    let mut bytes_from_lower_priority_groups = 0;
+    for (priority, group) in store.groups_map.iter() {
+        if priority >= &msg.priority || &bytes_from_lower_priority_groups >= bytes_to_remove_from_store {
+            break;
+        }
+        bytes_from_lower_priority_groups += group.byte_size;
+    }
+    bytes_from_lower_priority_groups
+}
+
+fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, bytes_removed_from_store: &mut u64, msgs_removed: &mut Vec<ID>, msg: &Msg) {
+    let mut groups_removed: Vec<u64> = vec![];
+    for (priority, group) in store.groups_map.iter_mut() {
+        let mut ids_removed_from_group: Vec<ID> = vec![];
+        let mut remove_group = true;
+        for (id, msg_byte_size) in group.msgs_map.iter().rev() {
+            if priority > &msg.priority {
+                break;
+            }
+            if *bytes_removed_from_store >= *bytes_to_remove_from_store {
+                remove_group = false;
+                break;
+            }
+            ids_removed_from_group.push(*id);
+            *bytes_removed_from_store += msg_byte_size;
+        }
+        if remove_group {
+            groups_removed.push(*priority);
+        } else {
+            for id in ids_removed_from_group.iter() {
+                group.msgs_map.remove(&id);
+            }
+        }
+        msgs_removed.append(&mut ids_removed_from_group);
+    }
+    for priority in groups_removed.iter() {
+        store.groups_map.remove(&priority);
+    }
+}
+
+fn msg_is_lacking_priority(bytes_from_lower_priority_groups: &u64, group_byte_size: &u64, bytes_to_remove_from_store: &u64) -> bool {
+    &(bytes_from_lower_priority_groups + group_byte_size) < bytes_to_remove_from_store
+}
+
+fn reject_if_lacking_priority(working_group: &WorkingGroup, bytes_from_lower_priority_groups: &u64, bytes_to_remove_from_store: &u64) -> Result<(), String> {
+    let is_lacking_priority = msg_is_lacking_priority(&bytes_from_lower_priority_groups, &working_group.group.byte_size, &bytes_to_remove_from_store);
+    if is_lacking_priority {
+        return Err(format!("The message lacks priority."));
+    }
+    Ok(())
+}
+
+fn prune_groups(store: &mut Store, msg: &Msg, working_group: &mut WorkingGroup, msgs_removed: &mut Vec<ID>) -> Result<(), String> {
     if let Some(max_byte_size) = store.max_byte_size {
         if msg.byte_size > max_byte_size {
             return Err(format!("Message is too large for store."));
         }
         if max_byte_size < (store.byte_size + msg.byte_size) {
-            let bytes_to_remove_from_store = {
-                if store.byte_size <= msg.byte_size {
-                    msg.byte_size
-                } else {
-                    (store.byte_size + msg.byte_size) - max_byte_size
-                }
-            };
-            let mut bytes_from_lower_priority_groups = 0;
-            for (priority, group) in store.groups_map.iter() {
-                if priority >= &msg.priority || bytes_from_lower_priority_groups >= bytes_to_remove_from_store {
-                    break;
-                }
-                bytes_from_lower_priority_groups += group.byte_size;
-            }
-            if (bytes_from_lower_priority_groups + working_group.group.byte_size) < bytes_to_remove_from_store {
-                return Err(format!("The message lacks priority."));
-            }
+            let bytes_to_remove_from_store = get_bytes_to_remove(&max_byte_size, &store.byte_size, &msg.byte_size);
+            let bytes_from_lower_priority_groups = get_bytes_located_in_lower_priority_groups(store, &bytes_to_remove_from_store, msg);
+            reject_if_lacking_priority(working_group, &bytes_from_lower_priority_groups, &bytes_to_remove_from_store)?;
             let mut bytes_removed_from_store = 0;
-            let mut groups_removed: Vec<u64> = vec![];
-            for (priority, group) in store.groups_map.iter_mut() {
-                let mut ids_removed_from_group: Vec<ID> = vec![];
-                let mut remove_group = true;
-                for (id, msg_byte_size) in group.msgs_map.iter().rev() {
-                    if priority > &msg.priority {
-                        break;
-                    }
-                    if bytes_removed_from_store >= bytes_to_remove_from_store {
-                        remove_group = false;
-                        break;
-                    }
-                    ids_removed_from_group.push(*id);
-                    bytes_removed_from_store += msg_byte_size;
-                }
-                if remove_group {
-                    groups_removed.push(*priority);
-                } else {
-                    for id in ids_removed_from_group.iter() {
-                        group.msgs_map.remove(&id);
-                    }
-                }
-                msgs_removed.append(&mut ids_removed_from_group);
-            }
-            for priority in groups_removed.iter() {
-                store.groups_map.remove(&priority);
-            }
-            let mut msgs_removed_from_group: Vec<ID> = vec![];
-            let mut bytes_removed_from_group = 0;
-            if bytes_to_remove_from_store > bytes_removed_from_store {
-                for (id, msg_byte_size) in working_group.group.msgs_map.iter() {
-                    if bytes_removed_from_store >= bytes_to_remove_from_store {
-                        break;
-                    }
-                    msgs_removed_from_group.push(*id);
-                    bytes_removed_from_store += msg_byte_size;
-                    bytes_removed_from_group += msg_byte_size;
-                }
-                for id in msgs_removed_from_group.iter() {
-                    working_group.group.msgs_map.remove(&id);
-                }
-                working_group.group.byte_size -= bytes_removed_from_group;
-                msgs_removed.append(&mut msgs_removed_from_group);
-            }
+            remove_msgs_and_groups(store, &bytes_to_remove_from_store, &mut bytes_removed_from_store, msgs_removed, msg);
+            prune_working_group_if_needed(store, working_group, &max_byte_size, msgs_removed, msg);
             store.byte_size -= bytes_removed_from_store;
         }
     }
+    Ok(())
+}
+
+// Store Actions Start
+fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
+    let mut working_group = { store.working_group.remove(&0).unwrap() };
+    let mut msgs_removed: Vec<ID> = vec![];
+    prune_working_group(store, &mut working_group, msg, &mut msgs_removed)?;
+    prune_groups(store, msg, &mut working_group, &mut msgs_removed)?;
     store.msgs_removed.insert(0, msgs_removed);
+    store.working_group.insert(0, working_group);
     Ok(())
 }
 
