@@ -383,22 +383,11 @@ pub fn delete(store: &mut Store, id: &ID) -> Result<bool, String> {
 }
 
 pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
-    // let mut next_id: Option<ID> = None;
     if let Some((_priority, group)) = store.groups_map.iter().rev().next() {
         return Ok(group.msgs_map.keys().rev().next().cloned())
     } else {
         return Ok(None)
     }
-    // for (_, group) in store.groups_map.iter().rev() {
-    //     for (id, _) in group.msgs_map.iter().rev() {
-    //        next_id = Some(*id); 
-    //        break;
-    //     }
-    //     if next_id.is_some() {
-    //         break;
-    //     }
-    // }
-    // Ok(next_id) 
 }
 
 // Store Actions Finish
