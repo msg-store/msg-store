@@ -383,17 +383,22 @@ pub fn delete(store: &mut Store, id: &ID) -> Result<bool, String> {
 }
 
 pub fn get_next(store: &mut Store) -> Result<Option<ID>, String> {
-    let mut next_id: Option<ID> = None;
-    for (_, group) in store.groups_map.iter().rev() {
-        for (id, _) in group.msgs_map.iter().rev() {
-           next_id = Some(*id); 
-           break;
-        }
-        if next_id.is_some() {
-            break;
-        }
+    // let mut next_id: Option<ID> = None;
+    if let Some((_priority, group)) = store.groups_map.iter().rev().next() {
+        return Ok(group.msgs_map.keys().rev().next().cloned())
+    } else {
+        return Ok(None)
     }
-   Ok(next_id) 
+    // for (_, group) in store.groups_map.iter().rev() {
+    //     for (id, _) in group.msgs_map.iter().rev() {
+    //        next_id = Some(*id); 
+    //        break;
+    //     }
+    //     if next_id.is_some() {
+    //         break;
+    //     }
+    // }
+    // Ok(next_id) 
 }
 
 // Store Actions Finish
@@ -605,6 +610,12 @@ mod tests {
         assert_eq!(10, store.byte_size);
         assert_eq!(5, group_2.byte_size);
         assert_eq!(1, group_2.msgs_map.len());
+    }
+
+    #[test]
+    fn it_should_return_ok_none_when_no_group_is_present() {
+        let mut store = generate_store();
+        assert_eq!(None, get_next(&mut store).unwrap());
     }
 
 }
