@@ -771,4 +771,12 @@ mod tests {
         let mut store = generate_store();
         assert_eq!(None, get_next(&mut store).unwrap());
     }
+
+    #[test]
+    fn it_should_return_ok_false_when_deleting_a_msg_that_does_not_exist() {
+        let mut store = generate_store();
+        insert(&mut store, &Msg { priority: 0, byte_size: 10 }).unwrap();
+        let result_1 = delete(&mut store, &ID { priority: 0, timestamp: 0, sequence: 0 }).unwrap();
+        assert!(!result_1)
+    }
 }
