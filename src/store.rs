@@ -267,16 +267,13 @@ fn get_bytes_located_in_lower_priority_groups(store: &Store, bytes_to_remove_fro
     bytes_from_lower_priority_groups
 }
 
-fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, bytes_removed_from_store: &mut u64, msgs_removed: &mut Vec<ID>, msg: &Msg) {
+fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, bytes_removed_from_store: &mut u64, msgs_removed: &mut Vec<ID>) {
     let mut groups_removed: Vec<u64> = vec![];
     for (priority, group) in store.groups_map.iter_mut() {
         let mut ids_removed_from_group: Vec<ID> = vec![];
         let mut bytes_removed_from_group: u64 = 0;
         let mut remove_group = true;
         for (id, msg_byte_size) in group.msgs_map.iter().rev() {
-            if priority > &msg.priority {
-                break;
-            }
             if *bytes_removed_from_store >= *bytes_to_remove_from_store {
                 remove_group = false;
                 break;
@@ -322,7 +319,7 @@ fn prune_groups(store: &mut Store, msg: &Msg, working_group: &mut WorkingGroup, 
             let bytes_from_lower_priority_groups = get_bytes_located_in_lower_priority_groups(store, &bytes_to_remove_from_store, msg);
             reject_if_lacking_priority(working_group, &bytes_from_lower_priority_groups, &bytes_to_remove_from_store)?;
             let mut bytes_removed_from_store = 0;
-            remove_msgs_and_groups(store, &bytes_to_remove_from_store, &mut bytes_removed_from_store, msgs_removed, msg);
+            remove_msgs_and_groups(store, &bytes_to_remove_from_store, &mut bytes_removed_from_store, msgs_removed);
             prune_working_group_if_needed(store, working_group, &max_byte_size, msgs_removed, msg);
             store.byte_size -= bytes_removed_from_store;
         }
