@@ -271,6 +271,7 @@ fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, b
     let mut groups_removed: Vec<u64> = vec![];
     for (priority, group) in store.groups_map.iter_mut() {
         let mut ids_removed_from_group: Vec<ID> = vec![];
+        let mut bytes_removed_from_group: u64 = 0;
         let mut remove_group = true;
         for (id, msg_byte_size) in group.msgs_map.iter().rev() {
             if priority > &msg.priority {
@@ -281,6 +282,7 @@ fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, b
                 break;
             }
             ids_removed_from_group.push(*id);
+            bytes_removed_from_group += msg_byte_size;
             *bytes_removed_from_store += msg_byte_size;
         }
         if remove_group {
@@ -289,6 +291,7 @@ fn remove_msgs_and_groups(store: &mut Store, bytes_to_remove_from_store: &u64, b
             for id in ids_removed_from_group.iter() {
                 group.msgs_map.remove(&id);
             }
+            group.byte_size -= bytes_removed_from_group;
         }
         msgs_removed.append(&mut ids_removed_from_group);
     }
@@ -589,6 +592,22 @@ mod tests {
         let result_2 = insert(&mut store, &Msg { priority: 1, byte_size: 5 }).unwrap();
         let result_3 = insert(&mut store, &Msg { priority: 1, byte_size: 6 }).unwrap();
         assert_eq!(result_2.id, result_3.ids_removed[0]);
+    }
+
+    #[test]
+    fn it_should_not_remove_group_but_msgs_from_group() {
+        let mut store = generate_store();
+        store.max_byte_size = Some(10);
+        let _result_1 = insert(&mut store, &Msg { priority: 1, byte_size: 5 }).unwrap();
+        let _result_2 = insert(&mut store, &Msg { priority: 1, byte_size: 5 }).unwrap();
+        let _result_3 = insert(&mut store, &Msg { priority: 2, byte_size: 5 }).unwrap();
+        let group_1 = store.groups_map.get(&1).unwrap();
+        let group_2 = store.groups_map.get(&2).unwrap();
+        assert_eq!(1, group_1.msgs_map.len());
+        assert_eq!(5, group_1.byte_size);
+        assert_eq!(10, store.byte_size);
+        assert_eq!(5, group_2.byte_size);
+        assert_eq!(1, group_2.msgs_map.len());
     }
 
 }
