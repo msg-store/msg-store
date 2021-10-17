@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-type MsgId = i32;
-type GroupId = i32;
-type MsgByteSize = i32;
+pub type MsgId = i32;
+pub type GroupId = i32;
+pub type MsgByteSize = i32;
 type IdToGroup = BTreeMap<MsgId, GroupId>;
 
 pub struct ImportData {
@@ -339,7 +339,7 @@ fn generate_insert_result(store: &mut Store, id: MsgId) -> InsertResult {
     }
 }
 
-fn get_next_id(store: &mut Store) -> MsgId {
+pub fn get_next_id(store: &mut Store) -> MsgId {
     store.next_id += 1;
     if store.next_id == MsgId::MAX {
         store.next_id = 0;
