@@ -19,6 +19,15 @@ pub struct InsertResult {
     pub id: MsgId,
     pub ids_removed: Vec<MsgId>,
 }
+pub struct ReinsertResult {
+    pub ids_removed: Vec<MsgId>,
+}
+pub enum MoveResult {
+    Ok { insert_result: ReinsertResult, msg_data: Msg },
+    Err { error: String },
+    InsertionError { insert_result: ReinsertResult, error: String },
+    ReinsertionError { insert_error: String, reinsert_error: String }
+}
 pub struct PruningInfo {
     pub store_difference: Option<MsgByteSize>,
     pub group_difference: Option<MsgByteSize>,
@@ -320,6 +329,9 @@ fn prepare_store(store: &mut Store, msg: &Msg) -> Result<(), String> {
     let mut msgs_removed: Vec<MsgId> = vec![];
     prune_working_group(store, &mut working_group, msg, &mut msgs_removed)?;
     prune_groups(store, msg, &mut working_group, &mut msgs_removed)?;
+    for id in msgs_removed.iter() {
+        store.id_to_group_map.remove(id);
+    }
     store.msgs_removed.insert(0, msgs_removed);
     store.working_group.insert(0, working_group);
     Ok(())
@@ -349,6 +361,16 @@ pub fn get_next_id(store: &mut Store) -> MsgId {
 
 fn insert_into_id_to_group_map(store: &mut Store, id: &MsgId, priority: &GroupId) {
     store.id_to_group_map.insert(*id, *priority);
+}
+
+fn reinsert(store: &mut Store, msg: &Msg, id: &MsgId) -> Result<ReinsertResult, String> {
+    set_working_group(store, &msg.priority);
+    prepare_store(store, msg)?;
+    insert_msg_in_working_group(store, &msg.byte_size, &id);
+    update_working_group(store);
+    insert_into_id_to_group_map(store, &id, &msg.priority);
+    let result = generate_insert_result(store, *id);
+    Ok(ReinsertResult { ids_removed: result.ids_removed })
 }
 
 pub fn insert(store: &mut Store, msg: &Msg) -> Result<InsertResult, String> {
@@ -395,10 +417,96 @@ pub fn delete(store: &mut Store, id: &MsgId) -> Result<(), String> {
 }
 
 pub fn get_next(store: &mut Store) -> Result<Option<MsgId>, String> {
-    if let Some((_priority, group)) = store.groups_map.iter().rev().next() {
-        return Ok(group.msgs_map.keys().next().cloned());
-    } else {
-        Ok(None)
+    let group = match store.groups_map.iter().rev().next() {
+        Some(group) => group,
+        None => {
+            return Ok(None);
+        }
+    };
+    let id = match group.1.msgs_map.keys().next() {
+        Some(id) => *id,
+        None => {
+            return Ok(None);
+        }
+    };
+    return Ok(Some(id))
+}
+
+pub fn get_next_from_group(store: &mut Store, priority: &GroupId) -> Result<Option<MsgId>, String> {
+    let group = match store.groups_map.get(&priority) {
+        Some(group) => group,
+        None => {
+            return Ok(None);
+        }
+    };
+    let id = match group.msgs_map.keys().next() {
+        Some(id) => *id,
+        None => {
+            return Ok(None);
+        }
+    };
+    return Ok(Some(id))
+}
+
+pub fn msg_exists(store: &mut Store, id: &MsgId) -> Result<bool, String> {
+    let priority = match store.id_to_group_map.get(&id) {
+        Some(priority) => priority,
+        None => {
+            return Ok(false);
+        }
+    };
+    let group = match store.groups_map.get(&priority) {
+        Some(group) => group,
+        None => {
+            return Ok(false);
+        }
+    };
+    match group.msgs_map.keys().next() {
+        Some(_id) => Ok(true),
+        None => Ok(false)
+    }
+}
+
+pub fn mv(store: &mut Store, id: &MsgId, new_priority: &GroupId) -> MoveResult {
+    let priority = match store.id_to_group_map.get(&id) {
+        Some(priority) => priority,
+        None => {
+            return MoveResult::Err{error: format!("Id not found.")}
+        }
+    };
+    let group = match store.groups_map.get(priority) {
+        Some(group) => group,
+        None => {
+            return MoveResult::Err{
+                error: format!("Sync Error: id found in id_to_group_map, but the group was found.")
+            }
+        }
+    };
+    let byte_size = match group.msgs_map.get(id) {
+        Some(byte_size) => *byte_size,
+        None => {
+            return MoveResult::Err{
+                error: format!("Sync Error: id found in id_to_group_map but not in the group.")
+            }
+        }
+    };
+    if let Err(error) = delete(store, id) {
+        return MoveResult::Err{ error };
+    }
+    let msg = Msg {
+        priority: *new_priority,
+        byte_size
+    };
+    match reinsert(store, &msg, &id) {
+        Ok(insert_result) => MoveResult::Ok{ insert_result, msg_data: msg },
+        Err(insert_error) => match reinsert(store, &msg, &id) {
+            Ok(insert_result) => {
+                return MoveResult::InsertionError{ insert_result, error: insert_error };
+            },
+            Err(reinsert_error) => {
+                return MoveResult::ReinsertionError{ insert_error, reinsert_error };
+            }
+        }
     }
 }
 
