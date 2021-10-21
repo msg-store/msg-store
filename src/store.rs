@@ -468,13 +468,13 @@ pub fn msg_exists(store: &mut Store, id: &MsgId) -> Result<bool, String> {
 }
 
 pub fn mv(store: &mut Store, id: &MsgId, new_priority: &GroupId) -> MoveResult {
-    let priority = match store.id_to_group_map.get(&id) {
-        Some(priority) => priority,
+    let priority = match &store.id_to_group_map.get(&id) {
+        Some(priority) => **priority,
         None => {
             return MoveResult::Err{error: format!("Id not found.")}
         }
     };
-    let group = match store.groups_map.get(priority) {
+    let group = match store.groups_map.get(&priority) {
         Some(group) => group,
         None => {
             return MoveResult::Err{
@@ -499,12 +499,18 @@ pub fn mv(store: &mut Store, id: &MsgId, new_priority: &GroupId) -> MoveResult {
     };
     match reinsert(store, &msg, &id) {
         Ok(insert_result) => MoveResult::Ok{ insert_result, msg_data: msg },
-        Err(insert_error) => match reinsert(store, &msg, &id) {
-            Ok(insert_result) => {
-                return MoveResult::InsertionError{ insert_result, error: insert_error };
-            },
-            Err(reinsert_error) => {
-                return MoveResult::ReinsertionError{ insert_error, reinsert_error };
+        Err(insert_error) => {
+            let old_msg = Msg {
+                priority,
+                byte_size
+            };
+            match reinsert(store, &old_msg, &id) {
+                Ok(insert_result) => {
+                    return MoveResult::InsertionError{ insert_result, error: insert_error };
+                },
+                Err(reinsert_error) => {
+                    return MoveResult::ReinsertionError{ insert_error, reinsert_error };
+                }
             }
         }
     }
