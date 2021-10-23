@@ -32,12 +32,12 @@ pub struct UuidManager {
 impl UuidManager {
     pub fn default() -> UuidManager {
         UuidManager {
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("faild to get duration").as_nanos(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos(),
             sequence: 1
         }
     }
     pub fn next(&mut self) -> Uuid {
-        let nano = SystemTime::now().duration_since(UNIX_EPOCH).expect("faild to get duration").as_nanos();
+        let nano = SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos();
         if nano != self.timestamp {
             self.timestamp = nano;
             self.sequence = 1;
