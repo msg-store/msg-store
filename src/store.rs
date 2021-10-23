@@ -49,6 +49,11 @@ pub struct Packet {
     priority: GroupId,
     msg: String
 }
+impl Packet {
+    pub fn new(priority: GroupId, msg: String) -> Packet {
+        Packet { priority, msg }
+    }
+}
 
 #[cfg_attr(feature = "level", derive(Serialize, Deserialize))]
 pub struct PacketMetaData {
