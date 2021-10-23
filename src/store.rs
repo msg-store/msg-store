@@ -30,7 +30,10 @@ impl Group {
             byte_size: 0, 
             msgs_map: BTreeMap::new() 
         }
-    } 
+    }
+    pub fn update_from_config(&mut self, defaults: GroupDefaults) {
+        self.max_byte_size = defaults.max_byte_size;
+    }
 }
 
 struct RemovedMsgs {
