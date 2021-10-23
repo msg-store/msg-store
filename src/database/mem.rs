@@ -53,7 +53,7 @@ mod tests {
     mod add {
         use crate::{
             database::mem::Store,
-            store::Packet
+            store::{ Packet, GroupDefaults }
         };
 
         #[test]
@@ -170,6 +170,15 @@ mod tests {
             assert!(result.is_err());
         }
 
+        #[test]
+        fn should_create_group_with_defaults() {
+            let mut store = Store::open();
+            store.group_defaults.insert(1, GroupDefaults { max_byte_size: Some(10) });
+            store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not add msg");
+            let group = store.groups_map.get(&1).expect("Could not get group");
+            assert_eq!(Some(10), group.max_byte_size);
+        }
+
     }
 
     mod get {
@@ -207,6 +216,49 @@ mod tests {
             assert_eq!("second message", stored_packet.msg);
         }
 
+        #[test]
+        fn should_return_oldest_msg_in_group() {
+            let mut store = Store::open();
+            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
+            let _second_uuid = store.add(&Packet::new(2, "second message".to_string())).expect("Could not add first message");
+            let _third_uuid = store.add(&Packet::new(1, "third message".to_string())).expect("Could not add first message");
+            let stored_packet = store.get(None, Some(1)).expect("Msg not found");
+            assert_eq!(first_uuid, stored_packet.uuid);
+            assert_eq!("first message", stored_packet.msg);
+        }
+
     }
 
+    mod del {
+        use crate::{
+            database::mem::Store,
+            store::Packet
+        };
+
+        #[test]
+        fn should_decrease_byte_size() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            store.add(&Packet::new(1, "bar".to_string())).expect("Could not insert second msg");
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid).is_some());
+            store.del(&uuid).expect("Could not delete message");
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(3, store.byte_size);
+            assert_eq!(3, group.byte_size);
+            assert!(store.db.msgs.get(&uuid).is_none());
+        }
+
+        #[test]
+        fn should_remove_empty_group() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            assert!(store.groups_map.get(&1).is_some());
+            store.del(&uuid).expect("Could not delete message");
+            assert!(store.groups_map.get(&1).is_none())
+        }
+
+    }
 }
