@@ -137,18 +137,18 @@ impl<Db: Keeper> Store<Db> {
 
         // check if there is enough free space for the message
         if let Some(store_max_byte_size) = self.max_byte_size {
-            if (store_max_byte_size - higher_priority_msg_total) < msg_byte_size {
+            if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
                 return Err("message lacks priority.".to_string());
             }
         }
 
         // prune group if needed
         if let Some(group_max_byte_size) = &group.max_byte_size {
-            if &(msg_byte_size + &group.byte_size) <= group_max_byte_size {
+            if Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
                 // prune group
                 let mut ids_removed = vec![];
                 for (uuid, msg_byte_size) in group.msgs_map.iter() {
-                    if &(msg_byte_size + &group.byte_size) <= group_max_byte_size {
+                    if !Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
                         break;
                     }
                     ids_removed.push(uuid.clone());
@@ -170,12 +170,12 @@ impl<Db: Keeper> Store<Db> {
                 if &packet.priority > priority {
                     break 'groups;
                 }
-                if &(&self.byte_size - &msg_byte_size) <= store_max_byte_size {
+                if !Self::msg_excedes_max_byte_size(&self.byte_size, store_max_byte_size, &msg_byte_size) {
                     break 'groups;
                 }
                 let mut msgs_removed_from_group = vec![];
                 'messages: for (uuid, stored_msg_byte_size) in group.msgs_map.iter() {
-                    if &(&self.byte_size - &msg_byte_size) <= store_max_byte_size {
+                    if !Self::msg_excedes_max_byte_size(&self.byte_size, store_max_byte_size, &msg_byte_size) {
                         break 'messages;
                     }
                     self.byte_size -= stored_msg_byte_size;
@@ -197,10 +197,10 @@ impl<Db: Keeper> Store<Db> {
             }
 
             // prune group again
-            if &(&self.byte_size - &msg_byte_size) <= store_max_byte_size {
+            if Self::msg_excedes_max_byte_size(&self.byte_size, store_max_byte_size, &msg_byte_size) {
                 let mut msgs_removed_from_group = vec![];
                 for (uuid, stored_msg_byte_size) in group.msgs_map.iter() {
-                    if &(&self.byte_size - &msg_byte_size) <= store_max_byte_size {
+                    if !Self::msg_excedes_max_byte_size(&self.byte_size, store_max_byte_size, &msg_byte_size) {
                         break;
                     }
                     self.byte_size -= stored_msg_byte_size;
@@ -221,6 +221,7 @@ impl<Db: Keeper> Store<Db> {
         self.id_to_group_map.insert(uuid.clone(), packet.priority);     // insert the uuid into the uuid->priority map
         group.byte_size += msg_byte_size;                                         // increase the group byte size
         group.msgs_map.insert(uuid.clone(), msg_byte_size);             // insert the uuid into the uuid->byte size map
+        self.groups_map.insert(packet.priority, group);
 
         let package = Package {
             uuid,
