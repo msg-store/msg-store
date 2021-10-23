@@ -56,6 +56,7 @@ pub struct Package {
     pub byte_size: MsgByteSize
 }
 
+#[derive(Debug)]
 pub struct StoredPacket {
     pub uuid: Uuid,
     pub msg: String
@@ -311,7 +312,7 @@ impl<Db: Keeper> Store<Db> {
                     },
                     None => None
                 },                
-                None => match self.id_to_group_map.keys().rev().next() {
+                None => match self.id_to_group_map.keys().next() {
                     Some(uuid) => match self.db.get(&uuid) {
                         Some(msg) => Some(StoredPacket {
                             uuid: uuid.clone(),
