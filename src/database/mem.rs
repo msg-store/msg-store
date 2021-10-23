@@ -197,6 +197,16 @@ mod tests {
             assert_eq!("first message", stored_packet.msg);
         }
 
+        #[test]
+        fn should_return_highest_pri_msg() {
+            let mut store = Store::open();
+            store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
+            let second_msg = store.add(&Packet::new(2, "second message".to_string())).expect("Could not add first message");
+            let stored_packet = store.get(None, None).expect("Msg not found");
+            assert_eq!(second_msg, stored_packet.uuid);
+            assert_eq!("second message", stored_packet.msg);
+        }
+
     }
 
 }
