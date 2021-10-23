@@ -69,9 +69,7 @@ pub struct Store<Db: Keeper> {
     pub uuid_manager: UuidManager,
     pub db: Db,
     pub id_to_group_map: IdToGroup,
-    pub groups_map: BTreeMap<GroupId, Group>,
-    // pub working_group: BTreeMap<u8, WorkingGroup>,
-    // pub msgs_removed: BTreeMap<u8, Vec<MsgId>>
+    pub groups_map: BTreeMap<GroupId, Group>
 }
 
 impl<Db: Keeper> Store<Db> {
@@ -83,14 +81,14 @@ impl<Db: Keeper> Store<Db> {
             group_defaults: BTreeMap::new(),
             uuid_manager: UuidManager::default(),
             db,
-            // next_id: 0,
             id_to_group_map: BTreeMap::new(),
-            groups_map: BTreeMap::new(),
-            // working_group: BTreeMap::new(),
-            // msgs_removed: BTreeMap::new(),
+            groups_map: BTreeMap::new()
         }
     }
 
+    fn msg_excedes_max_byte_size(byte_size: &MsgByteSize, max_byte_size: &MsgByteSize, msg_byte_size: &MsgByteSize) -> bool {
+        &(byte_size + msg_byte_size) > max_byte_size
+    }
     
     pub fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
 
