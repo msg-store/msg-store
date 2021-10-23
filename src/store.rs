@@ -193,18 +193,20 @@ impl<Db: Keeper> Store<Db> {
             if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
                 let mut groups_removed = vec![];
                 let mut all_removed_msgs = vec![];
+                let mut bytes_removed = 0;
                 'groups: for (priority, group) in self.groups_map.iter_mut() {
                     if &packet.priority < priority {
                         break 'groups;
                     }
-                    if !Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                    if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
                         break 'groups;
                     }
                     let mut removed_msgs = RemovedMsgs::new(*priority);
-                    'messages: for uuid in group.msgs_map.keys() {
-                        if !Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                    'messages: for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
                             break 'messages;
                         }
+                        bytes_removed += msg_byte_size;
                         removed_msgs.add(uuid.clone());
                     }
                     if group.byte_size == 0 {
@@ -225,12 +227,14 @@ impl<Db: Keeper> Store<Db> {
                 }
 
                 // prune group again
-                if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                if Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
                     let mut removed_msgs = RemovedMsgs::new(packet.priority);
+                    let mut bytes_removed = 0;
                     for uuid in group.msgs_map.keys() {
-                        if !Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
                             break;
                         }
+                        bytes_removed = msg_byte_size;
                         removed_msgs.add(uuid.clone());
                     }
                     for uuid in removed_msgs.msgs {
