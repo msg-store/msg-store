@@ -150,6 +150,53 @@ mod tests {
             assert!(result.is_err());
         }
 
+        #[test]
+        fn should_return_msg_to_large_for_group_err() {
+            let mut store = Store::open();
+            store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not add first msg");
+            let mut group = store.groups_map.get_mut(&1).expect("Could not get mutable group");
+            group.max_byte_size = Some(10);
+            let result = store.add(&Packet::new(1, "12345678901".to_string()));
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn should_return_msg_lacks_priority_err() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(20);
+            store.add(&Packet::new(2, "1234567890".to_string())).expect("Could not add first msg");
+            store.add(&Packet::new(2, "1234567890".to_string())).expect("Could not second msg");
+            let result = store.add(&Packet::new(1, "1234567890".to_string()));
+            assert!(result.is_err());
+        }
+
+    }
+
+    mod get {
+        use crate::{
+            database::mem::Store,
+            store::Packet
+        };
+
+        #[test]
+        fn should_return_msg() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
+            let stored_packet = store.get(Some(uuid), None).expect("Msg not found");
+            assert_eq!(uuid, stored_packet.uuid);
+            assert_eq!("first message", stored_packet.msg);
+        }
+
+        #[test]
+        fn should_return_oldest_msg() {
+            let mut store = Store::open();
+            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
+            store.add(&Packet::new(1, "second message".to_string())).expect("Could not add first message");
+            let stored_packet = store.get(None, None).expect("Msg not found");
+            assert_eq!(first_uuid, stored_packet.uuid);
+            assert_eq!("first message", stored_packet.msg);
+        }
+
     }
 
 }
