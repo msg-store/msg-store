@@ -14,6 +14,7 @@ pub type GroupId = i32;
 pub type MsgByteSize = i32;
 type IdToGroup = BTreeMap<MsgId, GroupId>;
 
+#[derive(Debug, Clone, Copy)]
 pub struct GroupDefaults {
     pub max_byte_size: Option<MsgByteSize>,
 }
@@ -327,6 +328,31 @@ impl<Db: Keeper> Store<Db> {
                     None => None
                 }
             }
+        }
+    }
+
+    pub fn update_group_defaults(&mut self, priority: GroupId, defaults: &GroupDefaults) {
+        self.group_defaults.insert(priority, defaults.clone());
+        if let Some(mut group) = self.groups_map.remove(&priority) {
+            group.update_from_config(defaults.clone());
+            if let Some(max_byte_size) = group.max_byte_size {
+                let mut removed_msgs = RemovedMsgs::new(priority);
+                let mut bytes_removed = 0;
+                if Self::msg_excedes_max_byte_size(&(group.byte_size - bytes_removed), &max_byte_size, &0) {                    
+                    for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                        if !Self::msg_excedes_max_byte_size(&(group.byte_size - bytes_removed), &max_byte_size, &0) {
+                            break;
+                        }
+                        println!("group byte size: {}, max byte size: {}, removing: {:#?}", &(group.byte_size - bytes_removed), max_byte_size, uuid);
+                        bytes_removed += msg_byte_size;
+                        removed_msgs.add(uuid.clone());
+                    }                    
+                }
+                for uuid in removed_msgs.msgs {
+                    self.remove_msg(&uuid, &mut group);
+                }
+            }
+            self.groups_map.insert(priority, group);
         }
     }
 }
