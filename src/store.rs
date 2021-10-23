@@ -312,13 +312,14 @@ impl<Db: Keeper> Store<Db> {
                     },
                     None => None
                 },                
-                None => match self.id_to_group_map.keys().next() {
-                    Some(uuid) => match self.db.get(&uuid) {
-                        Some(msg) => Some(StoredPacket {
+                None => match self.groups_map.values().rev().next() {
+                    Some(group) => {
+                        let uuid = group.msgs_map.keys().next().expect("Could not find message");
+                        let msg = self.db.get(&uuid).expect("Could not find message");
+                        Some(StoredPacket {
                             uuid: uuid.clone(),
                             msg
-                        }),
-                        None => None
+                        })
                     },
                     None => None
                 }
