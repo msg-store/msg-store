@@ -142,6 +142,14 @@ mod tests {
             assert_eq!(Some(&1), store.id_to_group_map.get(&third_uuid));
         }
 
+        #[test]
+        fn should_return_msg_to_large_for_store_err() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(9);
+            let result = store.add(&Packet::new(2, "1234567890".to_string()));
+            assert!(result.is_err());
+        }
+
     }
 
 }
