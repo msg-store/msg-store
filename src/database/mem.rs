@@ -74,7 +74,7 @@ mod tests {
         }
 
         #[test]
-        fn should_prune_byte_size_to_10() {
+        fn should_prune_store_byte_size_to_10_when_store_max_byte_size_exists() {
             let mut store = Store::open();
             let first_packet = Packet::new(1, "1234567890".to_string());
             let second_packet = Packet::new(1, "1234567890".to_string());
@@ -82,6 +82,64 @@ mod tests {
             store.add(&first_packet).expect("Could not add first msg");
             store.add(&second_packet).expect("Could not second msg");
             assert_eq!(store.byte_size, 10)
+        }
+
+        #[test]
+        fn should_prune_store_byte_size_to_10_when_group_max_byte_size_exists() {
+            let mut store = Store::open();
+            let first_packet = Packet::new(1, "1234567890".to_string());
+            let second_packet = Packet::new(1, "1234567890".to_string());
+            store.add(&first_packet).expect("Could not add first msg");
+            let mut group = store.groups_map.get_mut(&1).expect("Could not find group");
+            group.max_byte_size = Some(10);
+            store.add(&second_packet).expect("Could not second msg");
+            assert_eq!(store.byte_size, 10)
+        }
+
+        #[test]
+        fn should_prune_group_byte_size_to_10_when_group_max_byte_size_exists() {
+            let mut store = Store::open();
+            let first_packet = Packet::new(1, "1234567890".to_string());
+            let second_packet = Packet::new(1, "1234567890".to_string());
+            store.add(&first_packet).expect("Could not add first msg");
+            let mut group = store.groups_map.get_mut(&1).expect("Could not get mutable group");
+            group.max_byte_size = Some(10);
+            store.add(&second_packet).expect("Could not second msg");
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(group.byte_size, 10)
+        }
+
+        #[test]
+        fn should_prune_oldest_msg_in_a_group_when_exceeding_group_max_byte_size() {
+            let mut store = Store::open();
+            let first_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not add first msg");
+            let mut group = store.groups_map.get_mut(&1).expect("Could not get mutable group");
+            group.max_byte_size = Some(10);
+            let second_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not second msg");
+            assert_eq!(None, store.id_to_group_map.get(&first_uuid));
+            assert_eq!(Some(&1), store.id_to_group_map.get(&second_uuid));
+        }
+
+        #[test]
+        fn should_prune_oldest_msg_in_a_group_when_exceeding_store_max_byte_size() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(10);
+            let first_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not add first msg");
+            let second_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not second msg");
+            assert_eq!(None, store.id_to_group_map.get(&first_uuid));
+            assert_eq!(Some(&1), store.id_to_group_map.get(&second_uuid));
+        }
+
+        #[test]
+        fn should_prune_oldest_lowest_pri_msg_in_the_store_when_exceeding_store_max_byte_size() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(20);
+            let first_uuid = store.add(&Packet::new(2, "1234567890".to_string())).expect("Could not add first msg");
+            let second_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not second msg");
+            let third_uuid = store.add(&Packet::new(1, "1234567890".to_string())).expect("Could not second msg");
+            assert_eq!(Some(&2), store.id_to_group_map.get(&first_uuid));
+            assert_eq!(None, store.id_to_group_map.get(&second_uuid));
+            assert_eq!(Some(&1), store.id_to_group_map.get(&third_uuid));
         }
 
     }
