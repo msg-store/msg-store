@@ -11,4 +11,6 @@ leveldb = { version = "0.8.6", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [features]
+default = [ "mem" ]
+mem = []
 level = [ "bincode", "db-key", "leveldb", "serde" ]
