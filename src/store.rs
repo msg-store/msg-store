@@ -14,6 +14,10 @@ pub type GroupId = i32;
 pub type MsgByteSize = i32;
 type IdToGroup = BTreeMap<MsgId, GroupId>;
 
+pub struct StoreDefaults {
+    pub max_byte_size: Option<MsgByteSize>
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GroupDefaults {
     pub max_byte_size: Option<MsgByteSize>,
@@ -359,4 +363,44 @@ impl<Db: Keeper> Store<Db> {
             self.groups_map.insert(priority, group);
         }
     }
+
+    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) {
+        self.max_byte_size = defaults.max_byte_size;
+        if let Some(store_max_byte_size) = self.max_byte_size.clone() {
+            if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &0) {
+                let mut groups_removed = vec![];
+                let mut all_removed_msgs = vec![];
+                let mut bytes_removed = 0;
+                'groups: for (priority, group) in self.groups_map.iter_mut() {
+                    if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &0) {
+                        break 'groups;
+                    }
+                    let mut removed_msgs = RemovedMsgs::new(*priority);
+                    'messages: for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &0) {
+                            break 'messages;
+                        }
+                        bytes_removed += msg_byte_size;
+                        removed_msgs.add(uuid.clone());
+                    }
+                    if group.byte_size == 0 {
+                        groups_removed.push(*priority);
+                    }
+                    all_removed_msgs.push(removed_msgs);
+                }
+                // get groups of msgs that where removed
+                for group_data in all_removed_msgs {
+                    let mut group = self.groups_map.remove(&group_data.priority).expect("Could not find mutable group");
+                    for uuid in group_data.msgs {
+                        self.remove_msg(&uuid, &mut group);
+                    }
+                    self.groups_map.insert(group_data.priority, group);
+                }
+                for priority in groups_removed {
+                    self.groups_map.remove(&priority);
+                }
+            }            
+        }
+    }
+
 }

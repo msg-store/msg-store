@@ -302,4 +302,36 @@ mod tests {
         }
 
     }
+
+    mod update_store_defaults {
+        use crate::{
+            database::{
+                mem::Store
+            },
+            store::{
+                StoreDefaults,
+                Packet
+            }
+        };
+
+        #[test]
+        fn should_update_store_config() {
+            let mut store = Store::open();
+            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(10) });
+            assert_eq!(Some(10), store.max_byte_size);
+        }
+
+        #[test]
+        fn should_prune_group_after_update() {
+            let mut store = Store::open();
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
+            store.add(&Packet::new(1, "bar".to_string())).expect("Could not add message");
+            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) });            
+            let group = store.groups_map.get(&1).expect("Could not find defaults");
+            assert_eq!(3, store.byte_size);
+            assert_eq!(3, group.byte_size);
+        }
+
+    }
+
 }
