@@ -95,6 +95,7 @@ pub struct Store<Db: Keeper> {
     pub db: Db,
     pub id_to_group_map: IdToGroup,
     pub groups_map: BTreeMap<GroupId, Group>,
+    pub msgs_inserted: i32,
     pub msgs_deleted: i32,
     pub msgs_burned: i32
 }
@@ -110,8 +111,21 @@ impl<Db: Keeper> Store<Db> {
             db,
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new(),
+            msgs_inserted: 0,
             msgs_deleted: 0,
             msgs_burned: 0
+        }
+    }
+
+    pub fn clear_msgs_inserted_count(&mut self) {
+        self.msgs_inserted = 0;
+    }
+
+    fn inc_msgs_inserted_count(&mut self) {
+        if self.msgs_inserted == i32::MAX {
+            self.msgs_inserted = 1;
+        } else {
+            self.msgs_inserted += 1;
         }
     }
 
@@ -293,6 +307,7 @@ impl<Db: Keeper> Store<Db> {
             byte_size: msg_byte_size
         };
         self.db.add(&package);
+        self.inc_msgs_inserted_count();
 
         Ok(uuid)
         

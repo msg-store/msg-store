@@ -74,6 +74,15 @@ mod tests {
         }
 
         #[test]
+        fn should_increase_inserted_msg_count() {
+            let mut store = Store::open();
+            assert_eq!(0, store.msgs_inserted);
+            let packet = Packet::new(1, "1234567890".to_string());
+            store.add(&packet).expect("Could not add msg");
+            assert_eq!(1, store.msgs_inserted);
+        }
+
+        #[test]
         fn should_prune_store_byte_size_to_10_when_store_max_byte_size_exists() {
             let mut store = Store::open();
             let first_packet = Packet::new(1, "1234567890".to_string());
@@ -399,6 +408,16 @@ mod tests {
             assert_eq!(1, store.msgs_burned);
             store.clear_msgs_burned_count();
             assert_eq!(0, store.msgs_burned);
+        }
+
+        #[test]
+        fn should_clear_msgs_inserted_count() {
+            let mut store = Store::open();
+            assert_eq!(0, store.msgs_inserted);
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+            assert_eq!(1, store.msgs_inserted);
+            store.clear_msgs_inserted_count();
+            assert_eq!(0, store.msgs_inserted);
         }   
 
     }
