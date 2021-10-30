@@ -179,6 +179,21 @@ mod tests {
             assert_eq!(Some(10), group.max_byte_size);
         }
 
+        #[test]
+        fn should_increase_burned_msg_count() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(3);
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert msg");
+            assert_eq!(0, store.msgs_burned);
+            store.add(&Packet::new(1, "bar".to_string())).expect("Could not insert msg");
+            assert_eq!(1, store.msgs_burned);
+            store.max_byte_size = None;
+            let mut group = store.groups_map.get_mut(&1).expect("Could not find group");
+            group.max_byte_size = Some(3);
+            store.add(&Packet::new(1, "baz".to_string())).expect("Could not insert msg");
+            assert_eq!(2, store.msgs_burned);
+        }
+
     }
 
     mod get {
@@ -328,6 +343,7 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
+            assert_eq!(1, store.msgs_burned);
         }
 
     }
@@ -359,7 +375,31 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
+            assert_eq!(1, store.msgs_burned);
         }
+
+    }
+
+    mod clear_counts {
+        use crate::{
+            database::{
+                mem::Store
+            },
+            store::{
+                Packet
+            }
+        };
+
+        #[test]
+        fn should_clear_msgs_burned_count() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(3);
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+            assert_eq!(1, store.msgs_burned);
+            store.clear_msgs_burned_count();
+            assert_eq!(0, store.msgs_burned);
+        }   
 
     }
 

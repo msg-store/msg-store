@@ -95,7 +95,8 @@ pub struct Store<Db: Keeper> {
     pub db: Db,
     pub id_to_group_map: IdToGroup,
     pub groups_map: BTreeMap<GroupId, Group>,
-    pub msgs_deleted: i32
+    pub msgs_deleted: i32,
+    pub msgs_burned: i32
 }
 
 impl<Db: Keeper> Store<Db> {
@@ -109,7 +110,20 @@ impl<Db: Keeper> Store<Db> {
             db,
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new(),
-            msgs_deleted: 0
+            msgs_deleted: 0,
+            msgs_burned: 0
+        }
+    }
+
+    pub fn clear_msgs_burned_count(&mut self) {
+        self.msgs_burned = 0;
+    }
+
+    fn inc_msgs_burned_count(&mut self) {
+        if self.msgs_burned == i32::MAX {
+            self.msgs_burned = 1;
+        } else {
+            self.msgs_burned += 1;
         }
     }
 
@@ -135,7 +149,8 @@ impl<Db: Keeper> Store<Db> {
         self.id_to_group_map.remove(&uuid);
         self.byte_size -= byte_size;
         group.byte_size -= byte_size;
-        self.db.del(&uuid)
+        self.db.del(&uuid);
+        self.inc_msgs_burned_count();
     }
     
     pub fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
