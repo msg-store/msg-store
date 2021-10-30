@@ -203,6 +203,23 @@ mod tests {
             assert_eq!(2, store.msgs_burned);
         }
 
+        #[test]
+        fn should_reinsert_group_after_errors() {
+            let mut store = Store::open();
+            store.max_byte_size = Some(10);
+            store.add(&Packet::new(2, "12345".to_string())).expect("Could not add msg");
+            let first_attempt = store.add(&Packet::new(2, "12345678901".to_string()));
+            assert!(first_attempt.is_err());
+            let mut group = store.groups_map.get_mut(&2).expect("Group not found");
+            group.max_byte_size = Some(5);
+            let second_attempt = store.add(&Packet::new(2, "123456".to_string()));
+            assert!(second_attempt.is_err());
+            let third_attempt = store.add(&Packet::new(1, "123456".to_string()));
+            assert!(third_attempt.is_err());
+            let group = store.groups_map.get(&2);
+            assert!(group.is_some());
+        }
+
     }
 
     mod get {

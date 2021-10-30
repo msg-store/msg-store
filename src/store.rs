@@ -215,6 +215,7 @@ impl<Db: Keeper> Store<Db> {
         // check if there is enough free space for the message
         if let Some(store_max_byte_size) = self.max_byte_size {
             if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
+                self.groups_map.insert(packet.priority, group);
                 return Err("message lacks priority.".to_string());
             }
         }
