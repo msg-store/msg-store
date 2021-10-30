@@ -94,7 +94,8 @@ pub struct Store<Db: Keeper> {
     pub uuid_manager: UuidManager,
     pub db: Db,
     pub id_to_group_map: IdToGroup,
-    pub groups_map: BTreeMap<GroupId, Group>
+    pub groups_map: BTreeMap<GroupId, Group>,
+    pub msgs_deleted: i32
 }
 
 impl<Db: Keeper> Store<Db> {
@@ -107,7 +108,21 @@ impl<Db: Keeper> Store<Db> {
             uuid_manager: UuidManager::default(),
             db,
             id_to_group_map: BTreeMap::new(),
-            groups_map: BTreeMap::new()
+            groups_map: BTreeMap::new(),
+            msgs_deleted: 0
+        }
+    }
+
+    pub fn clear_msgs_deleted_count(&mut self) {
+        self.msgs_deleted = 0;
+    }
+
+    fn inc_msgs_deleted(&mut self, msgs_deleted: i32) {
+        let diff = (i32::MAX - self.msgs_deleted) - msgs_deleted;
+        if diff < 0 {
+            self.msgs_deleted = diff.abs();
+        } else {
+            self.msgs_deleted += msgs_deleted;
         }
     }
 
@@ -298,6 +313,7 @@ impl<Db: Keeper> Store<Db> {
         }
         self.id_to_group_map.remove(&uuid);
         self.db.del(&uuid);
+        self.inc_msgs_deleted(1);
         Ok(())
     }
 

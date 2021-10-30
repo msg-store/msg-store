@@ -260,6 +260,35 @@ mod tests {
             assert!(store.groups_map.get(&1).is_none())
         }
 
+        #[test]
+        fn should_increase_bytes_deleted_count() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            assert_eq!(0, store.msgs_deleted);
+            store.del(&uuid).expect("Could not delete message");
+            assert_eq!(1, store.msgs_deleted);
+        }
+
+        #[test]
+        fn should_reset_bytes_deleted_count_and_add_diff() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            store.msgs_deleted = i32::MAX;
+            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.del(&uuid).expect("Could not delete message");
+            assert_eq!(1, store.msgs_deleted);
+        }
+
+        #[test]
+        fn should_clear_deleted_count() {
+            let mut store = Store::open();
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            assert_eq!(0, store.msgs_deleted);
+            store.del(&uuid).expect("Could not delete message");
+            store.clear_msgs_deleted_count();
+            assert_eq!(0, store.msgs_deleted);
+        }
+
     }
 
     mod update_group_defaults {
