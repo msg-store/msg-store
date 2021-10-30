@@ -322,7 +322,7 @@ mod tests {
         }
 
         #[test]
-        fn should_prune_group_after_update() {
+        fn should_prune_store_after_update() {
             let mut store = Store::open();
             store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
             store.add(&Packet::new(1, "bar".to_string())).expect("Could not add message");
