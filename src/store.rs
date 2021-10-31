@@ -118,7 +118,8 @@ pub struct Store<Db: Keeper> {
 
 impl<Db: Keeper> Store<Db> {
 
-    pub fn new(db: Db) -> Store<Db> {
+    pub fn open(mut db: Db) -> Store<Db> {
+        db.fetch();
         Store {
             max_byte_size: None,
             byte_size: 0,
@@ -211,10 +212,10 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     /// use msg_store::{
     ///     store::Packet,
-    ///     database::mem::Store
+    ///     database::mem::open
     /// };
     /// 
-    /// let mut store = Store::open();
+    /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
     /// 
     /// ```
@@ -378,10 +379,10 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     /// use msg_store::{
     ///     store::Packet,
-    ///     database::mem::Store
+    ///     database::mem::open
     /// };
     /// 
-    /// let mut store = Store::open();
+    /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
     /// store.del(&uuid).expect("Could not remove msg");
     /// 
@@ -434,10 +435,10 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     /// use msg_store::{
     ///     store::Packet,
-    ///     database::mem::Store
+    ///     database::mem::open
     /// };
     /// 
-    /// let mut store = Store::open();
+    /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
     /// let my_message = store.get(Some(uuid), None);
     /// assert!(my_message.is_some());
@@ -500,10 +501,10 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     /// use msg_store::{
     ///     store::{GroupDefaults, Packet},
-    ///     database::mem::Store
+    ///     database::mem::open
     /// };
     /// 
-    /// let mut store = Store::open();
+    /// let mut store = open();
     /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
     /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
@@ -552,10 +553,10 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     /// use msg_store::{
     ///     store::{Packet, StoreDefaults},
-    ///     database::mem::Store
+    ///     database::mem::open
     /// };
     /// 
-    /// let mut store = Store::open();
+    /// let mut store = open();
     /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
     /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
