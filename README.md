@@ -1,4 +1,4 @@
-# Priority Message Store
+# msg-store
 The message store is fast and lightweight and allows for messages to be forwarded on a priority basis where bandwidth and disk capacity may be limited.
 
 ## Getting started
