@@ -5,7 +5,8 @@ use crate::{
         GroupId,
         MsgByteSize,
         Package,
-        PacketMetaData
+        PacketMetaData,
+        Store
     },
     uuid::Uuid
 };
@@ -15,11 +16,18 @@ use leveldb::{
     iterator::Iterable,
     kv::KV,
     options::{
+        Options,
         ReadOptions,
         WriteOptions
     }
 };
 use serde::{Serialize, Deserialize};
+use std::{
+    fs::create_dir_all,
+    path::Path
+};
+
+pub type LevelStore = Store<Leveldb>;
 
 pub struct Leveldb {
     pub msgs: Database<Uuid>,
@@ -27,7 +35,31 @@ pub struct Leveldb {
 }
 
 impl Leveldb {
-    
+    pub fn new(dir: &Path) -> Leveldb {
+        create_dir_all(&dir).expect("Could not create db location dir.");
+
+        let mut msgs_path = dir.to_path_buf();
+        msgs_path.push("msgs");
+        let msgs_path = msgs_path.as_path();
+
+        let mut msg_data_path = dir.to_path_buf();
+        msg_data_path.push("msg_data");
+        let msg_data_path = msg_data_path.as_path();
+
+        let mut msgs_options = Options::new();
+        msgs_options.create_if_missing = true;
+
+        let mut msg_data_options = Options::new();
+        msg_data_options.create_if_missing = true;
+
+        let msgs = Database::open(msgs_path, msgs_options).expect("Could not open msgs database");
+        let data = Database::open(Path::new(msg_data_path), msg_data_options).expect("Could not open data database");
+        
+        Leveldb {
+            msgs,
+            data
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -70,4 +102,8 @@ impl Key for Uuid {
     fn as_slice<T, F: Fn(&[u8]) -> T>(&self, f: F) -> T {
         f(&serialize(&self).expect("Could not serialize uuid"))
     }
+}
+
+pub fn open(location: &Path) -> LevelStore {
+    Store::open(Leveldb::new(location))
 }
