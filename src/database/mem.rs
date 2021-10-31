@@ -9,7 +9,13 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+/// This is a store which utilizes an in memory database.
+/// 
+/// The database is simply a BTreeMap.
+/// 
+/// This Store also comes with an associated function called "open".
 pub type Store = BaseStore<MemDb>;
+
 
 pub struct MemDb {
     msgs: BTreeMap<Uuid, String>
@@ -42,6 +48,20 @@ impl Keeper for MemDb {
 }
 
 impl BaseStore<MemDb> {
+
+    /// Opens the store
+    /// 
+    /// # Example
+    /// ```
+    /// use msg_store::{
+    ///     store::Packet,
+    ///     database::mem::Store
+    /// };
+    /// 
+    /// let mut store = Store::open();
+    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
+    /// 
+    /// ```
     pub fn open() -> BaseStore<MemDb> {
         Self::new(MemDb::new())
     }

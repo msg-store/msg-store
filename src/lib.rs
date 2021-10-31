@@ -8,6 +8,7 @@ use crate::{
     store::{ Package, PacketMetaData }
 };
 
+/// This trait is used to create a database plugin for a store
 pub trait Keeper {
     fn add(&mut self, package: &Package);
     fn get(&mut self, uuid: &Uuid) -> Option<String>;
