@@ -81,6 +81,7 @@ impl Packet {
 }
 
 #[cfg_attr(feature = "level", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PacketMetaData {
     pub uuid: Uuid,
     pub priority: GroupId,
@@ -118,9 +119,8 @@ pub struct Store<Db: Keeper> {
 
 impl<Db: Keeper> Store<Db> {
 
-    pub fn open(mut db: Db) -> Store<Db> {
-        db.fetch();
-        Store {
+    pub fn open(db: Db) -> Store<Db> {        
+        let mut store = Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
@@ -131,7 +131,13 @@ impl<Db: Keeper> Store<Db> {
             msgs_inserted: 0,
             msgs_deleted: 0,
             msgs_burned: 0
-        }
+        };
+        let mut data = store.db.fetch();
+        data.sort();
+        data.iter().for_each(|data| {
+            store.insert_data(&data).expect("Could not insert data");
+        });
+        store
     }
 
     /// A method for reseting the inserted messages count
@@ -187,6 +193,167 @@ impl<Db: Keeper> Store<Db> {
         self.inc_msgs_burned_count();
     }
     
+    fn get_group(&mut self, priority: GroupId) -> Group {
+        match self.groups_map.remove(&priority) {
+            Some(group) => group,
+            None => {
+                let max_byte_size = match self.group_defaults.get(&priority) {
+                    Some(defaults) => defaults.max_byte_size.clone(),
+                    None => None
+                };
+                Group::new(max_byte_size)
+            }
+        }
+    }
+
+    fn check_msg_size_agains_store(&self, msg_byte_size: MsgByteSize) -> Result<(), String> {
+        if let Some(store_max_byte_size) = self.max_byte_size {
+            if msg_byte_size > store_max_byte_size {
+                return Err("message excedes store max byte size".to_string())
+            }
+        }
+        Ok(())
+    }
+
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: GroupId, msg_byte_size: MsgByteSize) -> Result<Group, String> {
+        // check if the msg is too large for the target group
+        if let Some(group_max_byte_size) = &group.max_byte_size {
+            if &msg_byte_size > group_max_byte_size {
+                self.groups_map.insert(msg_priority, group);
+                return Err("message excedes group max byte size.".to_string());
+            }
+        }
+
+        // get the total byte count of all msgs that are higher priority
+        // in order to know how free bytes are remaining for the new message
+        let higher_priority_msg_total = {
+            let mut total = 0;
+            for (priority, group) in self.groups_map.iter().rev() {
+                if &msg_priority > priority {
+                    break;
+                }
+                total += group.byte_size;
+            }
+            total
+        };
+
+        // check if there is enough free space for the message
+        if let Some(store_max_byte_size) = self.max_byte_size {
+            if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
+                self.groups_map.insert(msg_priority, group);
+                return Err("message lacks priority.".to_string());
+            }
+        }
+        Ok(group)
+    }
+
+    fn prune_group(&mut self, group: &mut Group, priority: GroupId, msg_byte_size: MsgByteSize) {
+        if let Some(group_max_byte_size) = &group.max_byte_size {
+            if Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
+                // prune group
+                let mut removed_msgs = RemovedMsgs::new(priority);
+                for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                    if !Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
+                        break;
+                    }
+                    removed_msgs.add(uuid.clone());
+                }
+                for uuid in removed_msgs.msgs.iter() {
+                    self.remove_msg(&uuid, group);
+                }
+            }
+        }
+    }
+
+    fn prune_store(&mut self, group: &mut Group, msg_priority: GroupId, msg_byte_size: MsgByteSize) {
+        if let Some(store_max_byte_size) = self.max_byte_size.clone() {
+            if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                let mut groups_removed = vec![];
+                let mut all_removed_msgs = vec![];
+                let mut bytes_removed = 0;
+                'groups: for (priority, group) in self.groups_map.iter_mut() {
+                    if &msg_priority < priority {
+                        break 'groups;
+                    }
+                    if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                        break 'groups;
+                    }
+                    let mut removed_msgs = RemovedMsgs::new(*priority);
+                    'messages: for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                            break 'messages;
+                        }
+                        bytes_removed += msg_byte_size;
+                        removed_msgs.add(uuid.clone());
+                    }
+                    if group.byte_size == 0 {
+                        groups_removed.push(*priority);
+                    }
+                    all_removed_msgs.push(removed_msgs);
+                }
+                // get groups of msgs that where removed
+                for group_data in all_removed_msgs {
+                    let mut group = self.groups_map.remove(&group_data.priority).expect("Could not find mutable group");
+                    for uuid in group_data.msgs {
+                        self.remove_msg(&uuid, &mut group);
+                    }
+                    self.groups_map.insert(group_data.priority, group);
+                }
+                for priority in groups_removed {
+                    self.groups_map.remove(&priority);
+                }
+
+                // prune group again
+                if Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                    let mut removed_msgs = RemovedMsgs::new(msg_priority);
+                    let mut bytes_removed = 0;
+                    for uuid in group.msgs_map.keys() {
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                            break;
+                        }
+                        bytes_removed = msg_byte_size;
+                        removed_msgs.add(uuid.clone());
+                    }
+                    for uuid in removed_msgs.msgs {
+                        self.remove_msg(&uuid, group);
+                    }
+                }
+            }            
+        }
+    }
+
+    fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: GroupId, msg_byte_size: MsgByteSize) {
+        self.byte_size += msg_byte_size;                                          // increase store byte size
+        self.id_to_group_map.insert(uuid.clone(), priority);            // insert the uuid into the uuid->priority map
+        group.byte_size += msg_byte_size;                                         // increase the group byte size
+        group.msgs_map.insert(uuid.clone(), msg_byte_size);             // insert the uuid into the uuid->byte size map
+        self.groups_map.insert(priority, group);
+    }
+
+    fn insert_data(&mut self, data: &PacketMetaData) -> Result<(), String> {
+
+        // check if the msg is too large for the store
+        self.check_msg_size_agains_store(data.byte_size)?;
+
+        // check if the target group exists
+        // create if id does not
+        let group = self.get_group(data.priority);
+
+        // check if the msg is too large for the target group
+        let mut group = self.check_msg_size_against_group(group, data.priority, data.byte_size)?;
+
+        // prune group if needed
+        self.prune_group(&mut group, data.priority, data.byte_size);
+
+        // prune store
+        self.prune_store(&mut group, data.priority, data.byte_size);
+
+        // insert msg
+        self.insert_msg(group, data.uuid, data.priority, data.byte_size);
+
+        Ok(())
+    }
+
     /// Adds a msg to the store
     /// 
     /// The message itself is written to disk as well as metadata about the message
@@ -225,135 +392,25 @@ impl<Db: Keeper> Store<Db> {
         let msg_byte_size = packet.msg.len() as MsgByteSize;
 
         // check if the msg is too large for the store
-        if let Some(store_max_byte_size) = self.max_byte_size {
-            if msg_byte_size > store_max_byte_size {
-                return Err("message excedes store max byte size".to_string())
-            }
-        }
+        self.check_msg_size_agains_store(msg_byte_size)?;
 
         // check if the target group exists
         // create if id does not
-        let mut group = match self.groups_map.remove(&packet.priority) {
-            Some(group) => group,
-            None => {
-                let max_byte_size = match self.group_defaults.get(&packet.priority) {
-                    Some(defaults) => defaults.max_byte_size.clone(),
-                    None => None
-                };
-                Group::new(max_byte_size)
-            }
-        };
+        let group = self.get_group(packet.priority);
 
         // check if the msg is too large for the target group
-        if let Some(group_max_byte_size) = &group.max_byte_size {
-            if &msg_byte_size > group_max_byte_size {
-                self.groups_map.insert(packet.priority, group);
-                return Err("message excedes group max byte size.".to_string());
-            }
-        }
-
-        // get the total byte count of all msgs that are higher priority
-        // in order to know how free bytes are remaining for the new message
-        let higher_priority_msg_total = {
-            let mut total = 0;
-            for (priority, group) in self.groups_map.iter().rev() {
-                if &packet.priority > priority {
-                    break;
-                }
-                total += group.byte_size;
-            }
-            total
-        };
-
-        // check if there is enough free space for the message
-        if let Some(store_max_byte_size) = self.max_byte_size {
-            if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
-                self.groups_map.insert(packet.priority, group);
-                return Err("message lacks priority.".to_string());
-            }
-        }
+        let mut group = self.check_msg_size_against_group(group, packet.priority, msg_byte_size)?;
 
         // prune group if needed
-        if let Some(group_max_byte_size) = &group.max_byte_size {
-            if Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
-                // prune group
-                let mut removed_msgs = RemovedMsgs::new(packet.priority);
-                for (uuid, msg_byte_size) in group.msgs_map.iter() {
-                    if !Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
-                        break;
-                    }
-                    removed_msgs.add(uuid.clone());
-                }
-                for uuid in removed_msgs.msgs.iter() {
-                    self.remove_msg(&uuid, &mut group);
-                }
-            }
-        }
+        self.prune_group(&mut group, packet.priority, msg_byte_size);
 
         // prune store
-        if let Some(store_max_byte_size) = self.max_byte_size.clone() {
-            if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
-                let mut groups_removed = vec![];
-                let mut all_removed_msgs = vec![];
-                let mut bytes_removed = 0;
-                'groups: for (priority, group) in self.groups_map.iter_mut() {
-                    if &packet.priority < priority {
-                        break 'groups;
-                    }
-                    if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                        break 'groups;
-                    }
-                    let mut removed_msgs = RemovedMsgs::new(*priority);
-                    'messages: for (uuid, msg_byte_size) in group.msgs_map.iter() {
-                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                            break 'messages;
-                        }
-                        bytes_removed += msg_byte_size;
-                        removed_msgs.add(uuid.clone());
-                    }
-                    if group.byte_size == 0 {
-                        groups_removed.push(*priority);
-                    }
-                    all_removed_msgs.push(removed_msgs);
-                }
-                // get groups of msgs that where removed
-                for group_data in all_removed_msgs {
-                    let mut group = self.groups_map.remove(&group_data.priority).expect("Could not find mutable group");
-                    for uuid in group_data.msgs {
-                        self.remove_msg(&uuid, &mut group);
-                    }
-                    self.groups_map.insert(group_data.priority, group);
-                }
-                for priority in groups_removed {
-                    self.groups_map.remove(&priority);
-                }
-
-                // prune group again
-                if Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                    let mut removed_msgs = RemovedMsgs::new(packet.priority);
-                    let mut bytes_removed = 0;
-                    for uuid in group.msgs_map.keys() {
-                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                            break;
-                        }
-                        bytes_removed = msg_byte_size;
-                        removed_msgs.add(uuid.clone());
-                    }
-                    for uuid in removed_msgs.msgs {
-                        self.remove_msg(&uuid, &mut group);
-                    }
-                }
-            }            
-        }
+        self.prune_store(&mut group, packet.priority, msg_byte_size);
 
         // insert msg
         let uuid = self.uuid_manager.next();                                 // get uuid
-        self.byte_size += msg_byte_size;                                          // increase store byte size
-        self.id_to_group_map.insert(uuid.clone(), packet.priority);     // insert the uuid into the uuid->priority map
-        group.byte_size += msg_byte_size;                                         // increase the group byte size
-        group.msgs_map.insert(uuid.clone(), msg_byte_size);             // insert the uuid into the uuid->byte size map
-        self.groups_map.insert(packet.priority, group);
-
+        self.insert_msg(group, uuid, packet.priority, msg_byte_size);
+        
         let package = Package {
             uuid,
             priority: packet.priority,
