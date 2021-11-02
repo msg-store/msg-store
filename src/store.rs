@@ -5,8 +5,7 @@ use crate::{
         Uuid
     }
 };
-#[cfg(feature = "level")]
-use serde::{Deserialize, Serialize};
+
 use std::collections::BTreeMap;
 
 pub type MsgId = Uuid;
@@ -80,7 +79,6 @@ impl Packet {
     }
 }
 
-#[cfg_attr(feature = "level", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PacketMetaData {
     pub uuid: Uuid,

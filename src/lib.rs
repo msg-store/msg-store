@@ -1,11 +1,12 @@
 
-pub mod database;
+pub mod mem;
 pub mod store;
 pub mod uuid;
 
-use crate::{
-    uuid::Uuid,
-    store::{ Package, PacketMetaData }
+pub use crate::{
+    store::{ Package, Packet, PacketMetaData, Store},
+    mem::{ MemStore, open },
+    uuid::Uuid
 };
 
 /// This trait is used to create a database plugin for a store

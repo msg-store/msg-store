@@ -55,7 +55,7 @@ mod tests {
 
     mod add {
         use crate::{
-            database::mem::open,
+            mem::open,
             store::{ Packet, GroupDefaults }
         };
 
@@ -227,7 +227,7 @@ mod tests {
 
     mod get {
         use crate::{
-            database::mem::open,
+            mem::open,
             store::Packet
         };
 
@@ -275,7 +275,7 @@ mod tests {
 
     mod del {
         use crate::{
-            database::mem::open,
+            mem::open,
             store::Packet
         };
 
@@ -337,9 +337,7 @@ mod tests {
 
     mod update_group_defaults {
         use crate::{
-            database::{
-                mem::open
-            },
+            mem::open,
             store::{
                 GroupDefaults,
                 Packet
@@ -379,9 +377,7 @@ mod tests {
 
     mod update_store_defaults {
         use crate::{
-            database::{
-                mem::open
-            },
+            mem::open,
             store::{
                 StoreDefaults,
                 Packet
@@ -411,9 +407,7 @@ mod tests {
 
     mod clear_counts {
         use crate::{
-            database::{
-                mem::open
-            },
+            mem::open,
             store::{
                 Packet
             }
