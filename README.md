@@ -9,12 +9,9 @@ msg_store = "0.1.0"
 
 In src/main.rs
 ```rust
-    use msg_store::{
-        store::Packet,
-        database::mem::Store
-    };
+    use msg_store::{ Packet, open };
     
-    let mut store = Store::open();
+    let mut store = open();
     let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
 
     let my_message = store.get(None, None);
@@ -40,11 +37,11 @@ Four message are needed to be forwarded to a distant server.
 The first message is placed in priority 1, the second in priority 2, the third message in priority 1, and the fourth in priority 2 again as shown in the rust example and table below.
 ```rust
     use msg_store::{
-        store::Packet,
-        database::mem::Store
+        Packet,
+        open
     };
     
-    let mut store = Store::open();
+    let mut store = open();
     store.add(&Packet::new(1, "msg 1".to_string())).expect("Could not add msg");
     store.add(&Packet::new(2, "msg 2".to_string())).expect("Could not add msg");
     store.add(&Packet::new(1, "msg 3".to_string())).expect("Could not add msg");
@@ -64,11 +61,11 @@ When get is called, msg 2 will be the first retrieved, because it is in the high
 While this may be the default, it is not strictly enforced. A developer could pass a priority to the get method to get the next message from that group, or one could also pass the uuid to the method to get the exact message desired.
 ```rust
     use msg_store::{
-        store::Packet,
-        database::mem::Store
+        Packet,
+        open
     };
     
-    let mut store = Store::open();
+    let mut store = open();
     let msg_1_uuid = store.add(&Packet::new(1, "msg 1".to_string())).expect("Could not add msg");
     let msg_2_uuid = store.add(&Packet::new(2, "msg 2".to_string())).expect("Could not add msg");
     let msg_3_uuid = store.add(&Packet::new(1, "msg 3".to_string())).expect("Could not add msg");
@@ -85,9 +82,6 @@ On the other hand if there is a max byte size limit set, the first message to be
 ## Database backends
 The message store is designed to be database agnostic and could theoretically work with any database as a backend provided that a developer writes the glue code.
 
-This library provides the Keeper trait that must be implemented for any backend plugin. This library also provides two backends out of the box. The in memory database, and leveldb. Both can accessed in the database module. If the leveldb backend is desired, the "level" feature must be enabled in the Cargo.toml file.
-```toml
-msg_store = { version = "*", features = [ "level" ] }
-```
+This library provides the Keeper trait which must be implemented for any backend plugin. 
 
-As an aside, if a developer is wanting to create a backend plugin, it may be helpful to others to add an associated function called "open" to keep in continuity as the in-memory and leveldb plugins. Take a look at the source code to see what this would look like.
+Other plugins can be found on the [msg-store github page](https://github.com/msg-store)
