@@ -250,10 +250,12 @@ impl<Db: Keeper> Store<Db> {
             if Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
                 // prune group
                 let mut removed_msgs = RemovedMsgs::new(priority);
-                for (uuid, msg_byte_size) in group.msgs_map.iter() {
-                    if !Self::msg_excedes_max_byte_size(&group.byte_size, group_max_byte_size, &msg_byte_size) {
+                let mut bytes_removed = 0;
+                for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
+                    if !Self::msg_excedes_max_byte_size(&(group.byte_size - bytes_removed), group_max_byte_size, &msg_byte_size) {
                         break;
                     }
+                    bytes_removed += group_msg_byte_size;
                     removed_msgs.add(uuid.clone());
                 }
                 for uuid in removed_msgs.msgs.iter() {
@@ -574,23 +576,7 @@ impl<Db: Keeper> Store<Db> {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
-            if let Some(max_byte_size) = group.max_byte_size {
-                let mut removed_msgs = RemovedMsgs::new(priority);
-                let mut bytes_removed = 0;
-                if Self::msg_excedes_max_byte_size(&(group.byte_size - bytes_removed), &max_byte_size, &0) {                    
-                    for (uuid, msg_byte_size) in group.msgs_map.iter() {
-                        if !Self::msg_excedes_max_byte_size(&(group.byte_size - bytes_removed), &max_byte_size, &0) {
-                            break;
-                        }
-                        println!("group byte size: {}, max byte size: {}, removing: {:#?}", &(group.byte_size - bytes_removed), max_byte_size, uuid);
-                        bytes_removed += msg_byte_size;
-                        removed_msgs.add(uuid.clone());
-                    }                    
-                }
-                for uuid in removed_msgs.msgs {
-                    self.remove_msg(&uuid, &mut group);
-                }
-            }
+            self.prune_group(&mut group, priority, 0);
             self.groups_map.insert(priority, group);
         }
     }

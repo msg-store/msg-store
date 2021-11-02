@@ -367,7 +367,7 @@ mod tests {
             store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
             store.add(&Packet::new(1, "bar".to_string())).expect("Could not add message");
             store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });            
-            let group = store.groups_map.get(&1).expect("Could not find defaults");
+            let group = store.groups_map.get(&1).expect("Could not find group");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
             assert_eq!(1, store.msgs_burned);
