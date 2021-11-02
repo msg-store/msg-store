@@ -250,7 +250,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, priority: GroupId, msg_byte_size: MsgByteSize, prune_type: PruneBy) {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: MsgByteSize, prune_type: PruneBy) {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -258,7 +258,7 @@ impl<Db: Keeper> Store<Db> {
         if let Some(max_byte_size) = &max_byte_size {            
             if Self::msg_excedes_max_byte_size(&byte_size, max_byte_size, &msg_byte_size) {
                 // prune group
-                let mut removed_msgs = RemovedMsgs::new(priority);
+                let mut removed_msgs = vec![];
                 let mut bytes_removed = 0;
                 for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
                     if !Self::msg_excedes_max_byte_size(&(byte_size - bytes_removed), max_byte_size, &msg_byte_size) {
@@ -272,9 +272,9 @@ impl<Db: Keeper> Store<Db> {
                         Self::msg_excedes_max_byte_size(&(byte_size - bytes_removed), max_byte_size, &msg_byte_size)
                     );
                     bytes_removed += group_msg_byte_size;
-                    removed_msgs.add(uuid.clone());
+                    removed_msgs.push(uuid.clone());
                 }
-                for uuid in removed_msgs.msgs.iter() {
+                for uuid in removed_msgs.iter() {
                     self.remove_msg(&uuid, group);
                 }
             }
@@ -321,7 +321,7 @@ impl<Db: Keeper> Store<Db> {
 
                 // prune group again
                 if let Some(group) = group {
-                    self.prune_group(group, msg_priority, msg_byte_size, PruneBy::Store);
+                    self.prune_group(group, msg_byte_size, PruneBy::Store);
                 }
             }            
         }
@@ -348,7 +348,7 @@ impl<Db: Keeper> Store<Db> {
         let mut group = self.check_msg_size_against_group(group, data.priority, data.byte_size)?;
 
         // prune group if needed
-        self.prune_group(&mut group, data.priority, data.byte_size, PruneBy::Group);
+        self.prune_group(&mut group, data.byte_size, PruneBy::Group);
 
         // prune store
         self.prune_store(Some(&mut group), data.priority, data.byte_size);
@@ -407,7 +407,7 @@ impl<Db: Keeper> Store<Db> {
         let mut group = self.check_msg_size_against_group(group, packet.priority, msg_byte_size)?;
 
         // prune group if needed
-        self.prune_group(&mut group, packet.priority, msg_byte_size, PruneBy::Group);
+        self.prune_group(&mut group, msg_byte_size, PruneBy::Group);
 
         // prune store
         self.prune_store(Some(&mut group), packet.priority, msg_byte_size);
@@ -581,7 +581,7 @@ impl<Db: Keeper> Store<Db> {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
-            self.prune_group(&mut group, priority, 0, PruneBy::Group);
+            self.prune_group(&mut group, 0, PruneBy::Group);
             self.groups_map.insert(priority, group);
         }
     }
