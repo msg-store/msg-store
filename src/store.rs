@@ -377,10 +377,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{
-    ///     store::Packet,
-    ///     database::mem::open
-    /// };
+    /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
@@ -434,10 +431,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{
-    ///     store::Packet,
-    ///     database::mem::open
-    /// };
+    /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
@@ -490,10 +484,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{
-    ///     store::Packet,
-    ///     database::mem::open
-    /// };
+    /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
@@ -557,8 +548,9 @@ impl<Db: Keeper> Store<Db> {
     /// # Example
     /// ```
     /// use msg_store::{
-    ///     store::{GroupDefaults, Packet},
-    ///     database::mem::open
+    ///     Packet,
+    ///     store::GroupDefaults,
+    ///     open
     /// };
     /// 
     /// let mut store = open();
@@ -593,8 +585,9 @@ impl<Db: Keeper> Store<Db> {
     /// # Example
     /// ```
     /// use msg_store::{
-    ///     store::{Packet, StoreDefaults},
-    ///     database::mem::open
+    ///     Packet,
+    ///     store::StoreDefaults,
+    ///     open
     /// };
     /// 
     /// let mut store = open();
