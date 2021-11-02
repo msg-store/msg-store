@@ -1,5 +1,6 @@
 use crate::{
     Keeper,
+    Storage,
     uuid::{
         UuidManager,
         Uuid
@@ -117,32 +118,6 @@ pub struct Store<Db: Keeper> {
 
 impl<Db: Keeper> Store<Db> {
 
-    pub fn open(db: Db) -> Store<Db> {        
-        let mut store = Store {
-            max_byte_size: None,
-            byte_size: 0,
-            group_defaults: BTreeMap::new(),
-            uuid_manager: UuidManager::default(),
-            db,
-            id_to_group_map: BTreeMap::new(),
-            groups_map: BTreeMap::new(),
-            msgs_inserted: 0,
-            msgs_deleted: 0,
-            msgs_burned: 0
-        };
-        let mut data = store.db.fetch();
-        data.sort();
-        data.iter().for_each(|data| {
-            store.insert_data(&data).expect("Could not insert data");
-        });
-        store
-    }
-
-    /// A method for reseting the inserted messages count
-    pub fn clear_msgs_inserted_count(&mut self) {
-        self.msgs_inserted = 0;
-    }
-
     fn inc_msgs_inserted_count(&mut self) {
         if self.msgs_inserted == i32::MAX {
             self.msgs_inserted = 1;
@@ -151,22 +126,12 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    /// A method for reseting the burned messages count
-    pub fn clear_msgs_burned_count(&mut self) {
-        self.msgs_burned = 0;
-    }
-
     fn inc_msgs_burned_count(&mut self) {
         if self.msgs_burned == i32::MAX {
             self.msgs_burned = 1;
         } else {
             self.msgs_burned += 1;
         }
-    }
-
-    /// A method for reseting the deleted messages count
-    pub fn clear_msgs_deleted_count(&mut self) {
-        self.msgs_deleted = 0;
     }
 
     fn inc_msgs_deleted(&mut self, msgs_deleted: i32) {
@@ -354,6 +319,46 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
+}
+
+impl<Db: Keeper> Storage<Db> for Store<Db> {
+
+    fn open(db: Db) -> Store<Db> {        
+        let mut store = Store {
+            max_byte_size: None,
+            byte_size: 0,
+            group_defaults: BTreeMap::new(),
+            uuid_manager: UuidManager::default(),
+            db,
+            id_to_group_map: BTreeMap::new(),
+            groups_map: BTreeMap::new(),
+            msgs_inserted: 0,
+            msgs_deleted: 0,
+            msgs_burned: 0
+        };
+        let mut data = store.db.fetch();
+        data.sort();
+        data.iter().for_each(|data| {
+            store.insert_data(&data).expect("Could not insert data");
+        });
+        store
+    }
+
+    /// A method for reseting the inserted messages count
+    fn clear_msgs_inserted_count(&mut self) {
+        self.msgs_inserted = 0;
+    }
+
+    /// A method for reseting the burned messages count
+    fn clear_msgs_burned_count(&mut self) {
+        self.msgs_burned = 0;
+    }
+
+    /// A method for reseting the deleted messages count
+    fn clear_msgs_deleted_count(&mut self) {
+        self.msgs_deleted = 0;
+    }
+
     /// Adds a msg to the store
     /// 
     /// The message itself is written to disk as well as metadata about the message
@@ -377,14 +382,14 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{ Packet, open };
+    /// use msg_store::{ Packet, open, Storage };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
+    fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
 
         let msg_byte_size = packet.msg.len() as i32;
 
@@ -431,14 +436,14 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{ Packet, open };
+    /// use msg_store::{ Packet, open, Storage };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
     /// store.del(&uuid).expect("Could not remove msg");
     /// 
     /// ```
-    pub fn del(&mut self, uuid: &Uuid) -> Result<(), String> {
+    fn del(&mut self, uuid: &Uuid) -> Result<(), String> {
         let mut remove_group = false;
         let priority = match self.id_to_group_map.get(&uuid) {
             Some(priority) => priority,
@@ -484,7 +489,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// # Examples
     /// ```
-    /// use msg_store::{ Packet, open };
+    /// use msg_store::{ Packet, open, Storage };
     /// 
     /// let mut store = open();
     /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
@@ -498,7 +503,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<i32>) -> Option<StoredPacket> {
+    fn get(&mut self, uuid: Option<Uuid>, priority: Option<i32>) -> Option<StoredPacket> {
         match uuid {
             Some(uuid) => match self.db.get(&uuid) {
                 Some(msg) => Some(StoredPacket {
@@ -550,7 +555,7 @@ impl<Db: Keeper> Store<Db> {
     /// use msg_store::{
     ///     Packet,
     ///     store::GroupDefaults,
-    ///     open
+    ///     open, Storage
     /// };
     /// 
     /// let mut store = open();
@@ -564,7 +569,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) {
+    fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
@@ -587,7 +592,7 @@ impl<Db: Keeper> Store<Db> {
     /// use msg_store::{
     ///     Packet,
     ///     store::StoreDefaults,
-    ///     open
+    ///     open, Storage
     /// };
     /// 
     /// let mut store = open();
@@ -601,7 +606,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) {
+    fn update_store_defaults(&mut self, defaults: &StoreDefaults) {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, i32::MAX, 0)
     }

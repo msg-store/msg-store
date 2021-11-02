@@ -9,7 +9,7 @@ msg_store = "0.1.0"
 
 In src/main.rs
 ```rust
-    use msg_store::{ Packet, open };
+    use msg_store::{ Packet, open, Storage };
     
     let mut store = open();
     let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
@@ -38,7 +38,8 @@ The first message is placed in priority 1, the second in priority 2, the third m
 ```rust
     use msg_store::{
         Packet,
-        open
+        open,
+        Storage
     };
     
     let mut store = open();
@@ -62,7 +63,8 @@ While this may be the default, it is not strictly enforced. A developer could pa
 ```rust
     use msg_store::{
         Packet,
-        open
+        open, 
+        Storage
     };
     
     let mut store = open();
