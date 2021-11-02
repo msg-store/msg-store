@@ -8,32 +8,27 @@ use crate::{
 
 use std::collections::BTreeMap;
 
-pub type MsgId = Uuid;
-pub type GroupId = i32;
-pub type MsgByteSize = i32;
-type IdToGroup = BTreeMap<MsgId, GroupId>;
-
 enum PruneBy {
     Group,
     Store
 }
 
 pub struct StoreDefaults {
-    pub max_byte_size: Option<MsgByteSize>
+    pub max_byte_size: Option<i32>
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct GroupDefaults {
-    pub max_byte_size: Option<MsgByteSize>,
+    pub max_byte_size: Option<i32>,
 }
 
 pub struct Group {
-    pub max_byte_size: Option<MsgByteSize>,
-    pub byte_size: MsgByteSize,
-    pub msgs_map: BTreeMap<MsgId, MsgByteSize>,
+    pub max_byte_size: Option<i32>,
+    pub byte_size: i32,
+    pub msgs_map: BTreeMap<Uuid, i32>,
 }
 impl Group {
-    pub fn new(max_byte_size: Option<MsgByteSize>) -> Group {
+    pub fn new(max_byte_size: Option<i32>) -> Group {
         Group { 
             max_byte_size,
             byte_size: 0, 
@@ -46,11 +41,11 @@ impl Group {
 }
 
 struct RemovedMsgs {
-    priority: GroupId,
+    priority: i32,
     msgs: Vec<Uuid>
 }
 impl RemovedMsgs {
-    pub fn new(priority: GroupId) -> RemovedMsgs {
+    pub fn new(priority: i32) -> RemovedMsgs {
         RemovedMsgs {
             priority,
             msgs: vec![]
@@ -63,9 +58,9 @@ impl RemovedMsgs {
 
 pub struct Package {
     pub uuid: Uuid,
-    pub priority: GroupId,
+    pub priority: i32,
     pub msg: String,
-    pub byte_size: MsgByteSize
+    pub byte_size: i32
 }
 
 #[derive(Debug)]
@@ -75,11 +70,11 @@ pub struct StoredPacket {
 }
 
 pub struct Packet {
-    priority: GroupId,
+    priority: i32,
     msg: String
 }
 impl Packet {
-    pub fn new(priority: GroupId, msg: String) -> Packet {
+    pub fn new(priority: i32, msg: String) -> Packet {
         Packet { priority, msg }
     }
 }
@@ -87,8 +82,8 @@ impl Packet {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PacketMetaData {
     pub uuid: Uuid,
-    pub priority: GroupId,
-    pub byte_size: MsgByteSize
+    pub priority: i32,
+    pub byte_size: i32
 }
 
 
@@ -108,13 +103,13 @@ pub struct PacketMetaData {
 /// Messages that have been burned have been so automatically on insert or store/group defaults update once the
 /// max bytesize limit has been reached.
 pub struct Store<Db: Keeper> {
-    pub max_byte_size: Option<MsgByteSize>,
-    pub byte_size: MsgByteSize,
-    pub group_defaults: BTreeMap<GroupId, GroupDefaults>,
+    pub max_byte_size: Option<i32>,
+    pub byte_size: i32,
+    pub group_defaults: BTreeMap<i32, GroupDefaults>,
     pub uuid_manager: UuidManager,
     pub db: Db,
-    pub id_to_group_map: IdToGroup,
-    pub groups_map: BTreeMap<GroupId, Group>,
+    pub id_to_group_map: BTreeMap<Uuid, i32>,
+    pub groups_map: BTreeMap<i32, Group>,
     pub msgs_inserted: i32,
     pub msgs_deleted: i32,
     pub msgs_burned: i32
@@ -183,7 +178,7 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn msg_excedes_max_byte_size(byte_size: &MsgByteSize, max_byte_size: &MsgByteSize, msg_byte_size: &MsgByteSize) -> bool {
+    fn msg_excedes_max_byte_size(byte_size: &i32, max_byte_size: &i32, msg_byte_size: &i32) -> bool {
         &(byte_size + msg_byte_size) > max_byte_size
     }
 
@@ -196,7 +191,7 @@ impl<Db: Keeper> Store<Db> {
         self.inc_msgs_burned_count();
     }
     
-    fn get_group(&mut self, priority: GroupId) -> Group {
+    fn get_group(&mut self, priority: i32) -> Group {
         match self.groups_map.remove(&priority) {
             Some(group) => group,
             None => {
@@ -209,7 +204,7 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn check_msg_size_agains_store(&self, msg_byte_size: MsgByteSize) -> Result<(), String> {
+    fn check_msg_size_agains_store(&self, msg_byte_size: i32) -> Result<(), String> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if msg_byte_size > store_max_byte_size {
                 return Err("message excedes store max byte size".to_string())
@@ -218,7 +213,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
-    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: GroupId, msg_byte_size: MsgByteSize) -> Result<Group, String> {
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: i32, msg_byte_size: i32) -> Result<Group, String> {
         // check if the msg is too large for the target group
         if let Some(group_max_byte_size) = &group.max_byte_size {
             if &msg_byte_size > group_max_byte_size {
@@ -250,7 +245,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: MsgByteSize, prune_type: PruneBy) {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: i32, prune_type: PruneBy) {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -281,7 +276,7 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: GroupId, msg_byte_size: MsgByteSize) {
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: i32, msg_byte_size: i32) {
         if let Some(store_max_byte_size) = self.max_byte_size.clone() {
             if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
                 let mut groups_removed = vec![];
@@ -327,7 +322,7 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: GroupId, msg_byte_size: MsgByteSize) {
+    fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: i32, msg_byte_size: i32) {
         self.byte_size += msg_byte_size;                                          // increase store byte size
         self.id_to_group_map.insert(uuid.clone(), priority);            // insert the uuid into the uuid->priority map
         group.byte_size += msg_byte_size;                                         // increase the group byte size
@@ -394,7 +389,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     pub fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
 
-        let msg_byte_size = packet.msg.len() as MsgByteSize;
+        let msg_byte_size = packet.msg.len() as i32;
 
         // check if the msg is too large for the store
         self.check_msg_size_agains_store(msg_byte_size)?;
@@ -512,7 +507,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<GroupId>) -> Option<StoredPacket> {
+    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<i32>) -> Option<StoredPacket> {
         match uuid {
             Some(uuid) => match self.db.get(&uuid) {
                 Some(msg) => Some(StoredPacket {
@@ -577,7 +572,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: GroupId, defaults: &GroupDefaults) {
+    pub fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
