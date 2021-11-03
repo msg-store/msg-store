@@ -5,7 +5,6 @@ use crate::{
         PacketMetaData,
         Store
     },
-    Storage,
     uuid::Uuid
 };
 use std::collections::BTreeMap;
@@ -57,8 +56,7 @@ mod tests {
     mod add {
         use crate::{
             mem::open,
-            store::{ Packet, GroupDefaults },
-            Storage
+            store::{ Packet, GroupDefaults }
         };
 
         #[test]
@@ -230,8 +228,7 @@ mod tests {
     mod get {
         use crate::{
             mem::open,
-            store::Packet,
-            Storage
+            store::Packet
         };
 
         #[test]
@@ -279,8 +276,7 @@ mod tests {
     mod del {
         use crate::{
             mem::open,
-            store::Packet,
-            Storage
+            store::Packet
         };
 
         #[test]
@@ -345,8 +341,7 @@ mod tests {
             store::{
                 GroupDefaults,
                 Packet
-            },
-            Storage
+            }
         };
 
         #[test]
@@ -386,8 +381,7 @@ mod tests {
             store::{
                 StoreDefaults,
                 Packet
-            },
-            Storage
+            }
         };
 
         #[test]
@@ -416,8 +410,7 @@ mod tests {
             mem::open,
             store::{
                 Packet
-            },
-            Storage
+            }
         };
 
         #[test]
