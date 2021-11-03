@@ -375,6 +375,30 @@ mod tests {
 
     }
 
+    mod delete_group_defaults {
+        use crate::{
+            mem::open,
+            store::{
+                GroupDefaults,
+                Packet
+            }
+        };
+
+        #[test]
+        #[test]
+        fn should_update_existing_group() {
+            let mut store = open();
+            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) });
+            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
+            let group = store.groups_map.get(&1).expect("Could not find defaults");
+            assert_eq!(Some(10), group.max_byte_size);
+            store.delete_group_defaults(1);
+            assert!(store.group_defaults.get(&1).is_none());
+            let group = store.groups_map.get(&1).expect("Could not find defaults");
+            assert_eq!(None, group.max_byte_size);
+        }
+    }
+
     mod update_store_defaults {
         use crate::{
             mem::open,

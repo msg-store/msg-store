@@ -573,6 +573,33 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
+    /// Removes the defaults for a priority group
+    /// 
+    /// # Example
+    /// ```
+    /// use msg_store::{
+    ///     Packet,
+    ///     store::GroupDefaults,
+    ///     open
+    /// };
+    /// 
+    /// let mut store = open();
+    /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
+    /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+    /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
+    /// 
+    /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
+    /// assert_eq!(Some(6), group_1.max_byte_size);
+    /// 
+    /// // Now for the removal of the defaults
+    /// store.delete_group_defaults(1);
+    /// 
+    /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
+    /// 
+    /// assert_eq!(None, group_1.max_byte_size);
+    /// assert!(store.group_defaults.get(&1).is_none()); 
+    /// 
+    /// ```
     pub fn delete_group_defaults(&mut self, priority: i32) {
         self.group_defaults.remove(&priority);
         if let Some(group) = self.groups_map.get_mut(&priority) {
