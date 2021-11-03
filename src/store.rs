@@ -573,6 +573,13 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
+    pub fn delete_group_defaults(&mut self, priority: i32) {
+        self.group_defaults.remove(&priority);
+        if let Some(group) = self.groups_map.get_mut(&priority) {
+            group.max_byte_size = None;
+        }
+    }
+
     /// Updates the defaults for the store
     /// 
     /// The method takes a StoreDefaults struct which contains a member: max_byte_size.
