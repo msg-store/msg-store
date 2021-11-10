@@ -1,6 +1,6 @@
 [package]
 name = "msg-store"
-version = "0.3.2"
+version = "0.3.3"
 description = "A fast and light-weight message store designed to work as a priority queue in low hardware equiped devices."
 authors = ["joshua"]
 edition = "2018"
