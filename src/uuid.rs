@@ -20,7 +20,7 @@ impl Uuid {
         let split_str = id.split("-").collect::<Vec<&str>>();
         Uuid { 
             timestamp: split_str[0].parse().expect("Could not parse timestamp"), 
-            sequence: split_str[0].parse().expect("Could not parse sequence")
+            sequence: split_str[1].parse().expect("Could not parse sequence")
         }
     }
 }
