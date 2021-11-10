@@ -259,13 +259,6 @@ impl<Db: Keeper> Store<Db> {
                     if !Self::msg_excedes_max_byte_size(&(byte_size - bytes_removed), max_byte_size, &msg_byte_size) {
                         break;
                     }
-                    println!("({} - {}) - {} > {} = {}",
-                        byte_size,
-                        bytes_removed,
-                        msg_byte_size,
-                        max_byte_size,
-                        Self::msg_excedes_max_byte_size(&(byte_size - bytes_removed), max_byte_size, &msg_byte_size)
-                    );
                     bytes_removed += group_msg_byte_size;
                     removed_msgs.push(uuid.clone());
                 }
