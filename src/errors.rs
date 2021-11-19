@@ -1,6 +1,6 @@
 
 #[derive(Debug)]
-pub struct DbError(String);
+pub struct DbError(pub String);
 
 #[derive(Debug)]
 pub enum Error {
