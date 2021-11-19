@@ -1,4 +1,5 @@
 use crate::{
+    errors::DbError,
     Keeper,
     store::{
         Package,
@@ -29,25 +30,28 @@ impl MemDb {
 }
 
 impl Keeper for MemDb {
-    fn add(&mut self, package: &Package) {
+    fn add(&mut self, package: &Package) -> Result<(), DbError> {
         self.msgs.insert(package.uuid, package.msg.clone());
+        Ok(())
     }
-    fn get(&mut self, uuid: &Uuid) -> Option<String> {
-        match self.msgs.get(uuid) {
+    fn get(&mut self, uuid: &Uuid) -> Result<Option<String>, DbError> {
+        let msg = match self.msgs.get(uuid) {
             Some(msg) => Some(msg.clone()),
             None => None
-        }
+        };
+        Ok(msg)
     }
-    fn del(&mut self, uuid: &Uuid) {
+    fn del(&mut self, uuid: &Uuid) -> Result<(), DbError> {
         self.msgs.remove(uuid);
+        Ok(())
     }
-    fn fetch(&mut self) -> Vec<PacketMetaData> {
-        vec![]
+    fn fetch(&mut self) -> Result<Vec<PacketMetaData>, DbError> {
+        Ok(vec![])
     }
 }
 
 pub fn open() -> MemStore {
-    Store::open(MemDb::new())
+    Store::open(MemDb::new()).unwrap()
 }
 
 #[cfg(test)]
@@ -234,8 +238,8 @@ mod tests {
         #[test]
         fn should_return_msg() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
-            let stored_packet = store.get(Some(uuid), None).expect("Msg not found");
+            let uuid = store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            let stored_packet = store.get(Some(uuid), None).unwrap().expect("Msg not found");
             assert_eq!(uuid, stored_packet.uuid);
             assert_eq!("first message", stored_packet.msg);
         }
@@ -243,9 +247,9 @@ mod tests {
         #[test]
         fn should_return_oldest_msg() {
             let mut store = open();
-            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
-            store.add(&Packet::new(1, "second message".to_string())).expect("Could not add first message");
-            let stored_packet = store.get(None, None).expect("Msg not found");
+            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            store.add(&Packet::new(1, "second message".to_string())).unwrap();
+            let stored_packet = store.get(None, None).unwrap().expect("Msg not found");
             assert_eq!(first_uuid, stored_packet.uuid);
             assert_eq!("first message", stored_packet.msg);
         }
@@ -253,9 +257,9 @@ mod tests {
         #[test]
         fn should_return_highest_pri_msg() {
             let mut store = open();
-            store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
-            let second_msg = store.add(&Packet::new(2, "second message".to_string())).expect("Could not add first message");
-            let stored_packet = store.get(None, None).expect("Msg not found");
+            store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            let second_msg = store.add(&Packet::new(2, "second message".to_string())).unwrap();
+            let stored_packet = store.get(None, None).unwrap().expect("Msg not found");
             assert_eq!(second_msg, stored_packet.uuid);
             assert_eq!("second message", stored_packet.msg);
         }
@@ -263,10 +267,10 @@ mod tests {
         #[test]
         fn should_return_oldest_msg_in_group() {
             let mut store = open();
-            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).expect("Could not add first message");
-            let _second_uuid = store.add(&Packet::new(2, "second message".to_string())).expect("Could not add first message");
-            let _third_uuid = store.add(&Packet::new(1, "third message".to_string())).expect("Could not add first message");
-            let stored_packet = store.get(None, Some(1)).expect("Msg not found");
+            let first_uuid = store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            let _second_uuid = store.add(&Packet::new(2, "second message".to_string())).unwrap();
+            let _third_uuid = store.add(&Packet::new(1, "third message".to_string())).unwrap();
+            let stored_packet = store.get(None, Some(1)).unwrap().expect("Msg not found");
             assert_eq!(first_uuid, stored_packet.uuid);
             assert_eq!("first message", stored_packet.msg);
         }
@@ -282,13 +286,13 @@ mod tests {
         #[test]
         fn should_decrease_byte_size() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
-            store.add(&Packet::new(1, "bar".to_string())).expect("Could not insert second msg");
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            store.add(&Packet::new(1, "bar".to_string())).unwrap();
             let group = store.groups_map.get(&1).expect("Could get group ref");
             assert_eq!(6, store.byte_size);
             assert_eq!(6, group.byte_size);
             assert!(store.db.msgs.get(&uuid).is_some());
-            store.del(&uuid).expect("Could not delete message");
+            store.del(&uuid).unwrap();
             let group = store.groups_map.get(&1).expect("Could get group ref");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
@@ -298,37 +302,37 @@ mod tests {
         #[test]
         fn should_remove_empty_group() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert!(store.groups_map.get(&1).is_some());
-            store.del(&uuid).expect("Could not delete message");
+            store.del(&uuid).unwrap();
             assert!(store.groups_map.get(&1).is_none())
         }
 
         #[test]
         fn should_increase_bytes_deleted_count() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert_eq!(0, store.msgs_deleted);
-            store.del(&uuid).expect("Could not delete message");
+            store.del(&uuid).unwrap();
             assert_eq!(1, store.msgs_deleted);
         }
 
         #[test]
         fn should_reset_bytes_deleted_count_and_add_diff() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
             store.msgs_deleted = i32::MAX;
             assert_eq!(i32::MAX, store.msgs_deleted);
-            store.del(&uuid).expect("Could not delete message");
+            store.del(&uuid).unwrap();
             assert_eq!(1, store.msgs_deleted);
         }
 
         #[test]
         fn should_clear_deleted_count() {
             let mut store = open();
-            let uuid = store.add(&Packet::new(1, "foo".to_string())).expect("Could not insert first msg");
+            let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert_eq!(0, store.msgs_deleted);
-            store.del(&uuid).expect("Could not delete message");
+            store.del(&uuid).unwrap();
             store.clear_msgs_deleted_count();
             assert_eq!(0, store.msgs_deleted);
         }
@@ -347,7 +351,7 @@ mod tests {
         #[test]
         fn should_update_store_config() {
             let mut store = open();
-            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) });
+            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) }).unwrap();
             let defaults = store.group_defaults.get(&1).expect("Could not find defaults");
             assert_eq!(Some(10), defaults.max_byte_size);
         }
@@ -355,8 +359,8 @@ mod tests {
         #[test]
         fn should_update_existing_group() {
             let mut store = open();
-            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) });
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
+            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) }).unwrap();
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(Some(10), group.max_byte_size);
         }
@@ -364,9 +368,9 @@ mod tests {
         #[test]
         fn should_prune_group_after_update() {
             let mut store = open();
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
-            store.add(&Packet::new(1, "bar".to_string())).expect("Could not add message");
-            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });            
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) }).unwrap();            
             let group = store.groups_map.get(&1).expect("Could not find group");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
@@ -388,8 +392,8 @@ mod tests {
         #[test]
         fn should_update_existing_group() {
             let mut store = open();
-            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) });
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
+            store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(10) }).unwrap();
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(Some(10), group.max_byte_size);
             store.delete_group_defaults(1);
@@ -411,16 +415,16 @@ mod tests {
         #[test]
         fn should_update_store_config() {
             let mut store = open();
-            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(10) });
+            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(10) }).unwrap();
             assert_eq!(Some(10), store.max_byte_size);
         }
 
         #[test]
         fn should_prune_store_after_update() {
             let mut store = open();
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add message");
-            store.add(&Packet::new(1, "bar".to_string())).expect("Could not add message");
-            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) });            
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();            
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
@@ -441,8 +445,8 @@ mod tests {
         fn should_clear_msgs_burned_count() {
             let mut store = open();
             store.max_byte_size = Some(3);
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert_eq!(1, store.msgs_burned);
             store.clear_msgs_burned_count();
             assert_eq!(0, store.msgs_burned);
@@ -452,7 +456,7 @@ mod tests {
         fn should_clear_msgs_inserted_count() {
             let mut store = open();
             assert_eq!(0, store.msgs_inserted);
-            store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
+            store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert_eq!(1, store.msgs_inserted);
             store.clear_msgs_inserted_count();
             assert_eq!(0, store.msgs_inserted);
@@ -465,7 +469,6 @@ mod tests {
 
         #[test]
         fn should_convert_a_str_to_uuid() {
-
             assert_eq!(Uuid{ timestamp: 1636523479865480266, sequence: 1 }, Uuid::from_string("1636523479865480266-1"))
         }
     }

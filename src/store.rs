@@ -1,4 +1,7 @@
 use crate::{
+    errors::{
+        Error
+    },
     Keeper,
     uuid::{
         UuidManager,
@@ -117,7 +120,7 @@ pub struct Store<Db: Keeper> {
 
 impl<Db: Keeper> Store<Db> {
 
-    pub fn open(db: Db) -> Store<Db> {        
+    pub fn open(db: Db) -> Result<Store<Db>, Error> {        
         let mut store = Store {
             max_byte_size: None,
             byte_size: 0,
@@ -130,12 +133,15 @@ impl<Db: Keeper> Store<Db> {
             msgs_deleted: 0,
             msgs_burned: 0
         };
-        let mut data = store.db.fetch();
+        let mut data = match store.db.fetch() {
+            Ok(data) => Ok(data),
+            Err(db_error) => Err(Error::DbError(db_error))
+        }?;
         data.sort();
-        data.iter().for_each(|data| {
-            store.insert_data(&data).expect("Could not insert data");
-        });
-        store
+        data.iter().map(|data| -> Result<(), Error> {
+            store.insert_data(&data)
+        }).collect::<Result<(), Error>>()?;
+        Ok(store)
     }
 
     /// A method for reseting the inserted messages count
@@ -182,13 +188,20 @@ impl<Db: Keeper> Store<Db> {
         &(byte_size + msg_byte_size) > max_byte_size
     }
 
-    fn remove_msg(&mut self, uuid: &Uuid, group: &mut Group) {
-        let byte_size = group.msgs_map.remove(&uuid).expect("Could not get msg byte size");
+    fn remove_msg(&mut self, uuid: &Uuid, group: &mut Group) -> Result<(), Error> {
+        let byte_size = match group.msgs_map.remove(&uuid) {
+            Some(byte_size) => Ok(byte_size),
+            None => Err(Error::SyncError)
+        }?;
         self.id_to_group_map.remove(&uuid);
         self.byte_size -= byte_size;
         group.byte_size -= byte_size;
-        self.db.del(&uuid);
+        match self.db.del(&uuid) {
+            Ok(()) => Ok(()),
+            Err(db_error) => Err(Error::DbError(db_error))
+        }?;
         self.inc_msgs_burned_count();
+        Ok(())
     }
     
     fn get_group(&mut self, priority: i32) -> Group {
@@ -204,21 +217,21 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn check_msg_size_agains_store(&self, msg_byte_size: i32) -> Result<(), String> {
+    fn check_msg_size_agains_store(&self, msg_byte_size: i32) -> Result<(), Error> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if msg_byte_size > store_max_byte_size {
-                return Err("message excedes store max byte size".to_string())
+                return Err(Error::ExceedesStoreMax)
             }
         }
         Ok(())
     }
 
-    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: i32, msg_byte_size: i32) -> Result<Group, String> {
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: i32, msg_byte_size: i32) -> Result<Group, Error> {
         // check if the msg is too large for the target group
         if let Some(group_max_byte_size) = &group.max_byte_size {
             if &msg_byte_size > group_max_byte_size {
                 self.groups_map.insert(msg_priority, group);
-                return Err("message excedes group max byte size.".to_string());
+                return Err(Error::ExceedesGroupMax);
             }
         }
 
@@ -239,13 +252,13 @@ impl<Db: Keeper> Store<Db> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
                 self.groups_map.insert(msg_priority, group);
-                return Err("message lacks priority.".to_string());
+                return Err(Error::LacksPriority);
             }
         }
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: i32, prune_type: PruneBy) {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: i32, prune_type: PruneBy) -> Result<(), Error> {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -263,13 +276,14 @@ impl<Db: Keeper> Store<Db> {
                     removed_msgs.push(uuid.clone());
                 }
                 for uuid in removed_msgs.iter() {
-                    self.remove_msg(&uuid, group);
+                    self.remove_msg(&uuid, group)?;
                 }
             }
         }
+        Ok(())
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: i32, msg_byte_size: i32) {
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: i32, msg_byte_size: i32) -> Result<(), Error> {
         if let Some(store_max_byte_size) = self.max_byte_size.clone() {
             if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
                 let mut groups_removed = vec![];
@@ -297,9 +311,12 @@ impl<Db: Keeper> Store<Db> {
                 }
                 // get groups of msgs that where removed
                 for group_data in all_removed_msgs {
-                    let mut group = self.groups_map.remove(&group_data.priority).expect("Could not find mutable group");
+                    let mut group = match self.groups_map.remove(&group_data.priority) {
+                        Some(group) => Ok(group),
+                        None => Err(Error::SyncError)
+                    }?;
                     for uuid in group_data.msgs {
-                        self.remove_msg(&uuid, &mut group);
+                        self.remove_msg(&uuid, &mut group)?;
                     }
                     self.groups_map.insert(group_data.priority, group);
                 }
@@ -309,10 +326,11 @@ impl<Db: Keeper> Store<Db> {
 
                 // prune group again
                 if let Some(group) = group {
-                    self.prune_group(group, msg_byte_size, PruneBy::Store);
+                    self.prune_group(group, msg_byte_size, PruneBy::Store)?;
                 }
             }            
         }
+        Ok(())
     }
 
     fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: i32, msg_byte_size: i32) {
@@ -323,7 +341,7 @@ impl<Db: Keeper> Store<Db> {
         self.groups_map.insert(priority, group);
     }
 
-    fn insert_data(&mut self, data: &PacketMetaData) -> Result<(), String> {
+    fn insert_data(&mut self, data: &PacketMetaData) -> Result<(), Error> {
 
         // check if the msg is too large for the store
         self.check_msg_size_agains_store(data.byte_size)?;
@@ -336,15 +354,30 @@ impl<Db: Keeper> Store<Db> {
         let mut group = self.check_msg_size_against_group(group, data.priority, data.byte_size)?;
 
         // prune group if needed
-        self.prune_group(&mut group, data.byte_size, PruneBy::Group);
+        self.prune_group(&mut group, data.byte_size, PruneBy::Group)?;
 
         // prune store
-        self.prune_store(Some(&mut group), data.priority, data.byte_size);
+        self.prune_store(Some(&mut group), data.priority, data.byte_size)?;
 
         // insert msg
         self.insert_msg(group, data.uuid, data.priority, data.byte_size);
 
         Ok(())
+    }
+
+    fn get_stored_packet(&mut self, uuid: Uuid) -> Result<Option<StoredPacket>, Error> {
+        let possible_msg = match self.db.get(&uuid) {
+            Ok(data) => Ok(data),
+            Err(db_error) => Err(Error::DbError(db_error))
+        }?;
+        if let Some(msg) = possible_msg {
+            Ok(Some(StoredPacket {
+                uuid,
+                msg
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Adds a msg to the store
@@ -373,11 +406,11 @@ impl<Db: Keeper> Store<Db> {
     /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
-    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
+    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).unwrap();
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, packet: &Packet) -> Result<Uuid, String> {
+    pub fn add(&mut self, packet: &Packet) -> Result<Uuid, Error> {
 
         let msg_byte_size = packet.msg.len() as i32;
 
@@ -392,10 +425,10 @@ impl<Db: Keeper> Store<Db> {
         let mut group = self.check_msg_size_against_group(group, packet.priority, msg_byte_size)?;
 
         // prune group if needed
-        self.prune_group(&mut group, msg_byte_size, PruneBy::Group);
+        self.prune_group(&mut group, msg_byte_size, PruneBy::Group)?;
 
         // prune store
-        self.prune_store(Some(&mut group), packet.priority, msg_byte_size);
+        self.prune_store(Some(&mut group), packet.priority, msg_byte_size)?;
 
         // insert msg
         let uuid = self.uuid_manager.next();                                 // get uuid
@@ -407,7 +440,10 @@ impl<Db: Keeper> Store<Db> {
             msg: packet.msg.clone(),
             byte_size: msg_byte_size
         };
-        self.db.add(&package);
+        match self.db.add(&package) {
+            Ok(_) => Ok(()),
+            Err(db_error) => Err(Error::DbError(db_error))
+        }?;
         self.inc_msgs_inserted_count();
 
         Ok(uuid)
@@ -427,11 +463,11 @@ impl<Db: Keeper> Store<Db> {
     /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
-    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
-    /// store.del(&uuid).expect("Could not remove msg");
+    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).unwrap();
+    /// store.del(&uuid).unwrap();
     /// 
     /// ```
-    pub fn del(&mut self, uuid: &Uuid) -> Result<(), String> {
+    pub fn del(&mut self, uuid: &Uuid) -> Result<(), Error> {
         let mut remove_group = false;
         let priority = match self.id_to_group_map.get(&uuid) {
             Some(priority) => priority,
@@ -460,7 +496,10 @@ impl<Db: Keeper> Store<Db> {
             self.groups_map.remove(&priority);
         }
         self.id_to_group_map.remove(&uuid);
-        self.db.del(&uuid);
+        match self.db.del(&uuid) {
+            Ok(_) => Ok(()),
+            Err(db_error) => Err(Error::DbError(db_error))
+        }?;
         self.inc_msgs_deleted(1);
         Ok(())
     }
@@ -480,50 +519,51 @@ impl<Db: Keeper> Store<Db> {
     /// use msg_store::{ Packet, open };
     /// 
     /// let mut store = open();
-    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).expect("Could not add msg");
-    /// let my_message = store.get(Some(uuid), None);
+    /// let uuid = store.add(&Packet::new(1, "my message".to_string())).unwrap();
+    /// let my_message = store.get(Some(uuid), None).unwrap();
     /// assert!(my_message.is_some());
     /// 
-    /// let my_message = store.get(None, Some(1));
+    /// let my_message = store.get(None, Some(1)).unwrap();
     /// assert!(my_message.is_some());
     /// 
-    /// let my_message = store.get(None, None);
+    /// let my_message = store.get(None, None).unwrap();
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<i32>) -> Option<StoredPacket> {
-        match uuid {
-            Some(uuid) => match self.db.get(&uuid) {
-                Some(msg) => Some(StoredPacket {
-                    uuid,
-                    msg
-                }),
-                None => None
-            },
-            None => match priority {
-                Some(priority) => match self.groups_map.get(&priority) {
-                    Some(group) => match group.msgs_map.keys().next() {
-                        Some(uuid) => match self.db.get(&uuid) {
-                            Some(msg) => Some(StoredPacket {
-                                uuid: uuid.clone(),
-                                msg
-                            }),
-                            None => None
-                        },
-                        None => None
-                    },
-                    None => None
-                },                
-                None => match self.groups_map.values().rev().next() {
-                    Some(group) => {
-                        let uuid = group.msgs_map.keys().next().expect("Could not find message");
-                        let msg = self.db.get(&uuid).expect("Could not find message");
-                        Some(StoredPacket {
-                            uuid: uuid.clone(),
-                            msg
-                        })
-                    },
-                    None => None
+    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<i32>) -> Result<Option<StoredPacket>, Error> {
+        if let Some(uuid) = uuid {
+            self.get_stored_packet(uuid)
+        } else {
+            if let Some(priority) = priority {
+                let uuid = {
+                    if let Some(group) = self.groups_map.get(&priority) {
+                        if let Some(uuid) = group.msgs_map.keys().next() {
+                            Some(uuid.clone())
+                            
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
+                if let Some(uuid) = uuid {
+                    self.get_stored_packet(uuid)
+                } else {
+                    Ok(None)
+                }                
+            } else {
+                if let Some(group) = self.groups_map.values().rev().next() {
+                    let uuid = {
+                        if let Some(uuid) = group.msgs_map.keys().next() {
+                            Ok(uuid.clone())
+                        } else {
+                            Err(Error::SyncError)
+                        }
+                    }?;
+                    self.get_stored_packet(uuid)
+                } else {
+                    Ok(None)
                 }
             }
         }
@@ -547,8 +587,8 @@ impl<Db: Keeper> Store<Db> {
     /// };
     /// 
     /// let mut store = open();
-    /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
-    /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
+    /// store.add(&Packet::new(1, "foo".to_string())).unwrap();
+    /// store.add(&Packet::new(1, "bar".to_string())).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });
@@ -557,13 +597,14 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) {
+    pub fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) -> Result<(), Error> {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
-            self.prune_group(&mut group, 0, PruneBy::Group);
+            self.prune_group(&mut group, 0, PruneBy::Group)?;
             self.groups_map.insert(priority, group);
         }
+        Ok(())
     }
 
     /// Removes the defaults for a priority group
@@ -578,8 +619,8 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// let mut store = open();
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
-    /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
-    /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
+    /// store.add(&Packet::new(1, "foo".to_string())).unwrap();
+    /// store.add(&Packet::new(1, "bar".to_string())).unwrap();
     /// 
     /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
     /// assert_eq!(Some(6), group_1.max_byte_size);
@@ -618,17 +659,17 @@ impl<Db: Keeper> Store<Db> {
     /// };
     /// 
     /// let mut store = open();
-    /// store.add(&Packet::new(1, "foo".to_string())).expect("Could not add msg");
-    /// store.add(&Packet::new(1, "bar".to_string())).expect("Could not add msg");
+    /// store.add(&Packet::new(1, "foo".to_string())).unwrap();
+    /// store.add(&Packet::new(1, "bar".to_string())).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
-    /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) });
+    /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();
     /// 
     /// // The store should have removed 3 bytes in order to abide by the new requirement
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) {
+    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(), Error> {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, i32::MAX, 0)
     }
