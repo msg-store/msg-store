@@ -9,7 +9,7 @@ use crate::{
     }
 };
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap};
 
 enum PruneBy {
     Group,
@@ -131,7 +131,10 @@ impl<Db: Keeper> Store<Db> {
             groups_map: BTreeMap::new(),
             msgs_inserted: 0,
             msgs_deleted: 0,
-            msgs_burned: 0
+            msgs_burned: 0,
+            // msg_cache_max_byte_size: 0,
+            // msg_cache_byte_size: 0,
+            // msg_cache: BTreeMap::new()
         };
         let mut data = match store.db.fetch() {
             Ok(data) => Ok(data),
@@ -397,11 +400,11 @@ impl<Db: Keeper> Store<Db> {
     ///    where the the store does not have enough space for it after accounting for
     ///    higher priority messages i.e., higher priority messages will not be removed to make
     ///    space for lower priority ones.
-    /// * there is an error while reading or writing to disk.
+    /// * the database implimentation encounters an error. Please read the database plugin's documentation for details.
     /// 
     /// The error wiil be returned as a string.
     /// 
-    /// # Examples
+    /// # Example
     /// ```
     /// use msg_store::{ Packet, open };
     /// 
@@ -455,10 +458,12 @@ impl<Db: Keeper> Store<Db> {
     /// A message will be removed from the store and disk once given the
     /// the message's uuid number.
     /// 
-    /// # Errors
-    /// An error will be returned if there is an issue removing the message from disk.
+    /// The message store's msgs_deleted member will also be incremented by one.
     /// 
-    /// # Examples
+    /// # Errors
+    /// An error will be returned if the database encounters an error, read the database plugin documention for specifics.
+    /// 
+    /// # Example
     /// ```
     /// use msg_store::{ Packet, open };
     /// 
@@ -504,6 +509,43 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
+    /// Deletes a group and its messages from the store
+    /// 
+    /// A group's metadata and messages will be removed from the store and disk once given the
+    /// the group's priority number.
+    /// 
+    /// The message store's msgs_deleted member will also be incremented by one.
+    /// 
+    /// # Errors
+    /// An error will be returned if the database encounters an error, read the database plugin documention for specifics.
+    /// 
+    /// # Example
+    /// ```
+    /// use msg_store::{ Packet, open };
+    /// 
+    /// let mut store = open();
+    /// store.add(&Packet::new(1, "my message".to_string())).unwrap();
+    /// store.del_group(&1).unwrap();
+    /// 
+    /// assert!(store.get(None, None).unwrap().is_none());
+    /// 
+    /// ```
+    pub fn del_group(&mut self, priority: &i32) -> Result<(), Error> {
+        if let Some(group) = self.groups_map.remove(priority) {
+            let msg_count = group.msgs_map.len() as i32;
+            for (uuid, _msg_byte_size) in group.msgs_map.iter() {
+                match self.db.del(uuid) {
+                    Ok(_) => Ok(()),
+                    Err(error) => Err(Error::DbError(error))
+                }?;
+                self.id_to_group_map.remove(uuid);
+            }
+            self.byte_size -= group.byte_size;
+            self.inc_msgs_deleted(msg_count);
+        }        
+        Ok(())
+    }
+
     /// Gets a message from the store, either the next in line, the next in a specified priority group, or a specific message
     /// specified by the uuid option.
     /// 
@@ -511,10 +553,10 @@ impl<Db: Keeper> Store<Db> {
     /// message in line for that priority only. If neither options are present, the store will retrieve the next message in line store wide. 
     /// If no message is found, None is returned.
     /// 
-    /// # Error
-    /// The method will panic when encountering a disk error.
+    /// # Errors
+    /// This method will return an error if the database encounters an error or if the store realizes that the state is out of sync.
     /// 
-    /// # Examples
+    /// # Example
     /// ```
     /// use msg_store::{ Packet, open };
     /// 
@@ -569,6 +611,69 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
+    /// Get x number of message metadata within a given range and/or priority. This can be useful in a larger application 
+    /// context where more than one message retrieval may be required, like in a multithreaded app.
+    /// 
+    /// The range argument is a tulple consisting of two members. The first member is the starting index, and the second is the last index. 
+    /// As always, indexes start with zero. If the priority argument is passed a integer the function will only return a vec containing metadata from that priority.
+    /// 
+    /// # Example
+    /// 
+    /// let mut store = open();
+    /// let uuid1 = store.add(&Packet::new(1, "my message".to_string())).unwrap();
+    /// let uuid2 = store.add(&Packet::new(1, "my second message".to_string())).unwrap();
+    /// let uuid3 = store.add(&Packet::new(1, "my thrid message".to_string())).unwrap();
+    /// 
+    /// let set = store.get_metadata((0,2), Some(1));
+    /// assert_eq!(uuid1, set[0].uuid);
+    /// assert_eq!(uuid2, set[1].uuid);
+    /// assert_eq!(uuid3, set[2].uuid);
+    /// 
+    pub fn get_metadata(&mut self, range: (u32, u32), priority: Option<i32>) -> Vec<PacketMetaData> {
+        let mut uuids = vec![];
+        let mut iter_count: u32 = 0;
+        let (start, end) = range;
+        let mut primer_iter = 0;
+        if let Some(priority) = priority {
+            if let Some(group) = self.groups_map.get(&priority) {                
+                for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                    if primer_iter < start {
+                        primer_iter += 1;
+                        continue;
+                    }
+                    uuids.push(PacketMetaData{
+                        uuid: uuid.clone(),
+                        priority: priority.clone(),
+                        byte_size: msg_byte_size.clone()
+                    });
+                    if iter_count == end {
+                        break;
+                    }
+                    iter_count += 1;
+                }
+            }
+        } else {
+            'group: for (priority, group) in self.groups_map.iter() {
+                'msg: for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                    if primer_iter < start {
+                        primer_iter += 1;
+                        continue 'msg;
+                    }
+                    uuids.push(PacketMetaData{
+                        uuid: uuid.clone(),
+                        priority: priority.clone(),
+                        byte_size: msg_byte_size.clone()
+                    });
+                    if iter_count == end {
+                        break 'group;
+                    }
+                    iter_count += 1;
+                }
+            }
+        }
+        uuids
+    }
+
     /// Updates the defaults for a priority group
     /// 
     /// The method takes a GroupDefaults struct which contains a member: max_byte_size.
@@ -576,7 +681,7 @@ impl<Db: Keeper> Store<Db> {
     /// if the group's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
-    /// The method will panic if the database encounters an error
+    /// The method will return an error if the database encounters an error
     /// 
     /// # Example
     /// ```
@@ -648,7 +753,7 @@ impl<Db: Keeper> Store<Db> {
     /// if the store's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
-    /// The method will panic if the database encounters an error
+    /// The method will return an error if the database encounters an error
     /// 
     /// # Example
     /// ```

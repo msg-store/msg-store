@@ -14,7 +14,10 @@ pub enum Error {
     ExceedesGroupMax,
     LacksPriority,
     DbError(DbError),
-    SyncError
+    SyncError,
+    RangeError,
+    LocationDoesNotExist,
+    File(String)
 }
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

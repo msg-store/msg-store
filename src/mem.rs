@@ -277,6 +277,35 @@ mod tests {
 
     }
 
+    mod get_metadata {
+        use crate::{
+            mem::open,
+            store::Packet
+        };
+
+        #[test]
+        fn should_return_2_message_data_points() {
+            let mut store = open();
+            let uuid1 = store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            let uuid2 = store.add(&Packet::new(1, "second message".to_string())).unwrap();
+            let set = store.get_metadata((0, 1), None);
+            assert_eq!(2, set.len());
+            assert_eq!(uuid1, set[0].uuid);
+            assert_eq!(uuid2, set[1].uuid);
+        }
+
+        #[test]
+        fn should_return_2_message_data_points_with_range_starting_at_2() {
+            let mut store = open();
+            let _uuid1 = store.add(&Packet::new(1, "first message".to_string())).unwrap();
+            let _uuid2 = store.add(&Packet::new(1, "second message".to_string())).unwrap();
+            let _uuid3 = store.add(&Packet::new(1, "third message".to_string())).unwrap();
+            let set = store.get_metadata((1, 2), None);
+            assert_eq!(2, set.len());
+        }
+    
+    }
+
     mod del {
         use crate::{
             mem::open,
@@ -333,6 +362,92 @@ mod tests {
             let uuid = store.add(&Packet::new(1, "foo".to_string())).unwrap();
             assert_eq!(0, store.msgs_deleted);
             store.del(&uuid).unwrap();
+            store.clear_msgs_deleted_count();
+            assert_eq!(0, store.msgs_deleted);
+        }
+
+    }
+
+    mod del_group {
+        use crate::{
+            mem::open,
+            store::Packet
+        };
+
+        #[test]
+        fn should_decrease_byte_size() {
+            let mut store = open();
+            let uuid_1 = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            let uuid_2 = store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_some());
+            assert!(store.db.msgs.get(&uuid_2).is_some());
+            store.del_group(&1).unwrap();
+            assert_eq!(true, store.groups_map.get(&1).is_none());
+            assert_eq!(0, store.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_none());
+            assert!(store.db.msgs.get(&uuid_2).is_none());
+        }
+
+        #[test]
+        fn should_remove_empty_group() {
+            let mut store = open();
+            let uuid_1 = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            let uuid_2 = store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_some());
+            assert!(store.db.msgs.get(&uuid_2).is_some());
+            store.del_group(&1).unwrap();
+            assert_eq!(true, store.groups_map.get(&1).is_none());
+        }
+
+        #[test]
+        fn should_increase_bytes_deleted_count() {
+            let mut store = open();
+            let uuid_1 = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            let uuid_2 = store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_some());
+            assert!(store.db.msgs.get(&uuid_2).is_some());
+            store.del_group(&1).unwrap();
+            assert_eq!(2, store.msgs_deleted);
+        }
+
+        #[test]
+        fn should_reset_bytes_deleted_count_and_add_diff() {
+            let mut store = open();
+            let uuid_1 = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            let uuid_2 = store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_some());
+            assert!(store.db.msgs.get(&uuid_2).is_some());
+            store.msgs_deleted = i32::MAX;
+            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.del_group(&1).unwrap();
+            assert_eq!(2, store.msgs_deleted);
+        }
+
+        #[test]
+        fn should_clear_deleted_count() {
+            let mut store = open();
+            let uuid_1 = store.add(&Packet::new(1, "foo".to_string())).unwrap();
+            let uuid_2 = store.add(&Packet::new(1, "bar".to_string())).unwrap();
+            let group = store.groups_map.get(&1).expect("Could get group ref");
+            assert_eq!(6, store.byte_size);
+            assert_eq!(6, group.byte_size);
+            assert!(store.db.msgs.get(&uuid_1).is_some());
+            assert!(store.db.msgs.get(&uuid_2).is_some());
+            store.msgs_deleted = i32::MAX;
+            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.del_group(&1).unwrap();
             store.clear_msgs_deleted_count();
             assert_eq!(0, store.msgs_deleted);
         }
