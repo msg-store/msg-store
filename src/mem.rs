@@ -191,14 +191,14 @@ mod tests {
             let mut store = open();
             store.max_byte_size = Some(3);
             store.add(Packet::new(1, "foo".to_string())).expect("Could not insert msg");
-            assert_eq!(0, store.msgs_burned);
+            assert_eq!(0, store.msgs_pruned);
             store.add(Packet::new(1, "bar".to_string())).expect("Could not insert msg");
-            assert_eq!(1, store.msgs_burned);
+            assert_eq!(1, store.msgs_pruned);
             store.max_byte_size = None;
             let mut group = store.groups_map.get_mut(&1).expect("Could not find group");
             group.max_byte_size = Some(3);
             store.add(Packet::new(1, "baz".to_string())).expect("Could not insert msg");
-            assert_eq!(2, store.msgs_burned);
+            assert_eq!(2, store.msgs_pruned);
         }
 
         #[test]
@@ -512,7 +512,7 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find group");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
-            assert_eq!(1, store.msgs_burned);
+            assert_eq!(1, store.msgs_pruned);
         }
 
     }
@@ -566,7 +566,7 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
-            assert_eq!(1, store.msgs_burned);
+            assert_eq!(1, store.msgs_pruned);
         }
 
     }
@@ -580,14 +580,14 @@ mod tests {
         };
 
         #[test]
-        fn should_clear_msgs_burned_count() {
+        fn should_clear_msgs_pruned_count() {
             let mut store = open();
             store.max_byte_size = Some(3);
             store.add(Packet::new(1, "foo".to_string())).unwrap();
             store.add(Packet::new(1, "foo".to_string())).unwrap();
-            assert_eq!(1, store.msgs_burned);
-            store.clear_msgs_burned_count();
-            assert_eq!(0, store.msgs_burned);
+            assert_eq!(1, store.msgs_pruned);
+            store.clear_msgs_pruned_count();
+            assert_eq!(0, store.msgs_pruned);
         }
 
         #[test]

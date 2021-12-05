@@ -144,7 +144,7 @@ pub struct Store<Db: Keeper> {
     pub groups_map: BTreeMap<i32, Group>,
     pub msgs_inserted: i32,
     pub msgs_deleted: i32,
-    pub msgs_burned: i32
+    pub msgs_pruned: i32
 }
 
 impl<Db: Keeper> Store<Db> {
@@ -160,7 +160,7 @@ impl<Db: Keeper> Store<Db> {
             groups_map: BTreeMap::new(),
             msgs_inserted: 0,
             msgs_deleted: 0,
-            msgs_burned: 0,
+            msgs_pruned: 0,
             // msg_cache_max_byte_size: 0,
             // msg_cache_byte_size: 0,
             // msg_cache: BTreeMap::new()
@@ -190,15 +190,15 @@ impl<Db: Keeper> Store<Db> {
     }
 
     /// A method for reseting the burned messages count
-    pub fn clear_msgs_burned_count(&mut self) {
-        self.msgs_burned = 0;
+    pub fn clear_msgs_pruned_count(&mut self) {
+        self.msgs_pruned = 0;
     }
 
-    fn inc_msgs_burned_count(&mut self) {
-        if self.msgs_burned == i32::MAX {
-            self.msgs_burned = 1;
+    fn inc_msgs_pruned_count(&mut self) {
+        if self.msgs_pruned == i32::MAX {
+            self.msgs_pruned = 1;
         } else {
-            self.msgs_burned += 1;
+            self.msgs_pruned += 1;
         }
     }
 
@@ -232,7 +232,7 @@ impl<Db: Keeper> Store<Db> {
             Ok(()) => Ok(()),
             Err(db_error) => Err(Error::DbError(db_error))
         }?;
-        self.inc_msgs_burned_count();
+        self.inc_msgs_pruned_count();
         Ok(())
     }
     
