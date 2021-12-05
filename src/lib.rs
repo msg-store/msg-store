@@ -6,7 +6,7 @@ pub mod uuid;
 
 pub use crate::{
     errors::DbError,
-    store::{ Package, Packet, PacketMetaData, Store},
+    store::{ Package, Packet, PacketMetaData, Store, GetOptions},
     mem::{ MemStore, open },
     uuid::Uuid
 };
