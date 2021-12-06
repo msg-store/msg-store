@@ -373,8 +373,8 @@ mod tests {
         fn should_reset_bytes_deleted_count_and_add_diff() {
             let mut store = open();
             let uuid = store.add(Packet::new(1, "foo".to_string())).unwrap();
-            store.msgs_deleted = i32::MAX;
-            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.msgs_deleted = u32::MAX;
+            assert_eq!(u32::MAX, store.msgs_deleted);
             store.del(&uuid).unwrap();
             assert_eq!(1, store.msgs_deleted);
         }
@@ -452,8 +452,8 @@ mod tests {
             assert_eq!(6, group.byte_size);
             assert!(store.db.msgs.get(&uuid_1).is_some());
             assert!(store.db.msgs.get(&uuid_2).is_some());
-            store.msgs_deleted = i32::MAX;
-            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.msgs_deleted = u32::MAX;
+            assert_eq!(u32::MAX, store.msgs_deleted);
             store.del_group(&1).unwrap();
             assert_eq!(2, store.msgs_deleted);
         }
@@ -468,8 +468,8 @@ mod tests {
             assert_eq!(6, group.byte_size);
             assert!(store.db.msgs.get(&uuid_1).is_some());
             assert!(store.db.msgs.get(&uuid_2).is_some());
-            store.msgs_deleted = i32::MAX;
-            assert_eq!(i32::MAX, store.msgs_deleted);
+            store.msgs_deleted = u32::MAX;
+            assert_eq!(u32::MAX, store.msgs_deleted);
             store.del_group(&1).unwrap();
             store.clear_msgs_deleted_count();
             assert_eq!(0, store.msgs_deleted);

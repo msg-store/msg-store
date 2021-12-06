@@ -1,7 +1,5 @@
 use crate::{
-    errors::{
-        Error
-    },
+    errors::Error,
     Keeper,
     uuid::{
         UuidManager,
@@ -9,7 +7,7 @@ use crate::{
     }
 };
 
-use std::{collections::BTreeMap};
+use std::collections::BTreeMap;
 
 enum PruneBy {
     Group,
@@ -17,21 +15,21 @@ enum PruneBy {
 }
 
 pub struct StoreDefaults {
-    pub max_byte_size: Option<i32>
+    pub max_byte_size: Option<u32>
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct GroupDefaults {
-    pub max_byte_size: Option<i32>,
+    pub max_byte_size: Option<u32>,
 }
 
 pub struct Group {
-    pub max_byte_size: Option<i32>,
-    pub byte_size: i32,
-    pub msgs_map: BTreeMap<Uuid, i32>,
+    pub max_byte_size: Option<u32>,
+    pub byte_size: u32,
+    pub msgs_map: BTreeMap<Uuid, u32>,
 }
 impl Group {
-    pub fn new(max_byte_size: Option<i32>) -> Group {
+    pub fn new(max_byte_size: Option<u32>) -> Group {
         Group { 
             max_byte_size,
             byte_size: 0, 
@@ -44,11 +42,11 @@ impl Group {
 }
 
 struct RemovedMsgs {
-    priority: i32,
+    priority: u32,
     msgs: Vec<Uuid>
 }
 impl RemovedMsgs {
-    pub fn new(priority: i32) -> RemovedMsgs {
+    pub fn new(priority: u32) -> RemovedMsgs {
         RemovedMsgs {
             priority,
             msgs: vec![]
@@ -61,9 +59,9 @@ impl RemovedMsgs {
 
 pub struct Package {
     pub uuid: Uuid,
-    pub priority: i32,
+    pub priority: u32,
     pub msg: String,
-    pub byte_size: i32
+    pub byte_size: u32
 }
 
 #[derive(Debug)]
@@ -74,11 +72,11 @@ pub struct StoredPacket {
 
 #[derive(Debug, Clone)]
 pub struct Packet {
-    priority: i32,
+    priority: u32,
     msg: String
 }
 impl Packet {
-    pub fn new(priority: i32, msg: String) -> Packet {
+    pub fn new(priority: u32, msg: String) -> Packet {
         Packet { priority, msg }
     }
 }
@@ -86,14 +84,14 @@ impl Packet {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PacketMetaData {
     pub uuid: Uuid,
-    pub priority: i32,
-    pub byte_size: i32
+    pub priority: u32,
+    pub byte_size: u32
 }
 
 #[derive(Debug, Clone)]
 pub struct GetOptions {
     pub uuid: Option<Uuid>,
-    pub priority: Option<i32>,
+    pub priority: Option<u32>,
     pub reverse: bool
 }
 impl GetOptions {
@@ -108,7 +106,7 @@ impl GetOptions {
         self.uuid = Some(uuid);
         self
     }
-    pub fn priority(mut self, priority: i32) -> Self {
+    pub fn priority(mut self, priority: u32) -> Self {
         self.priority = Some(priority);
         self
     }
@@ -122,7 +120,7 @@ impl GetOptions {
 /// The base unit which stores information about inserted messages and priority groups
 /// to determine which messages should be forwarded or burned first.
 /// 
-/// The store can contain 2,147,483,647 priorities.
+/// The store can contain 4,294,967,295 priorities.
 /// Messages are forwarded on a highest priority then oldest status basis.
 /// Messages are burned/pruned on a lowest priority then oldest status basis.
 /// Messages are only burned once the store has reached the max bytesize limit.
@@ -135,16 +133,16 @@ impl GetOptions {
 /// Messages that have been burned have been so automatically on insert or store/group defaults update once the
 /// max bytesize limit has been reached.
 pub struct Store<Db: Keeper> {
-    pub max_byte_size: Option<i32>,
-    pub byte_size: i32,
-    pub group_defaults: BTreeMap<i32, GroupDefaults>,
+    pub max_byte_size: Option<u32>,
+    pub byte_size: u32,
+    pub group_defaults: BTreeMap<u32, GroupDefaults>,
     pub uuid_manager: UuidManager,
     pub db: Db,
-    pub id_to_group_map: BTreeMap<Uuid, i32>,
-    pub groups_map: BTreeMap<i32, Group>,
-    pub msgs_inserted: i32,
-    pub msgs_deleted: i32,
-    pub msgs_pruned: i32
+    pub id_to_group_map: BTreeMap<Uuid, u32>,
+    pub groups_map: BTreeMap<u32, Group>,
+    pub msgs_inserted: u32,
+    pub msgs_deleted: u32,
+    pub msgs_pruned: u32
 }
 
 impl<Db: Keeper> Store<Db> {
@@ -182,7 +180,7 @@ impl<Db: Keeper> Store<Db> {
     }
 
     fn inc_msgs_inserted_count(&mut self) {
-        if self.msgs_inserted == i32::MAX {
+        if self.msgs_inserted == u32::MAX {
             self.msgs_inserted = 1;
         } else {
             self.msgs_inserted += 1;
@@ -195,7 +193,7 @@ impl<Db: Keeper> Store<Db> {
     }
 
     fn inc_msgs_pruned_count(&mut self) {
-        if self.msgs_pruned == i32::MAX {
+        if self.msgs_pruned == u32::MAX {
             self.msgs_pruned = 1;
         } else {
             self.msgs_pruned += 1;
@@ -207,16 +205,15 @@ impl<Db: Keeper> Store<Db> {
         self.msgs_deleted = 0;
     }
 
-    fn inc_msgs_deleted(&mut self, msgs_deleted: i32) {
-        let diff = (i32::MAX - self.msgs_deleted) - msgs_deleted;
-        if diff < 0 {
-            self.msgs_deleted = diff.abs();
+    fn inc_msgs_deleted(&mut self) {
+        if self.msgs_deleted == u32::MAX {
+            self.msgs_deleted = 1;
         } else {
-            self.msgs_deleted += msgs_deleted;
+            self.msgs_deleted += 1;
         }
     }
 
-    fn msg_excedes_max_byte_size(byte_size: &i32, max_byte_size: &i32, msg_byte_size: &i32) -> bool {
+    fn msg_excedes_max_byte_size(byte_size: &u32, max_byte_size: &u32, msg_byte_size: &u32) -> bool {
         &(byte_size + msg_byte_size) > max_byte_size
     }
 
@@ -236,7 +233,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
     
-    fn get_group(&mut self, priority: i32) -> Group {
+    fn get_group(&mut self, priority: u32) -> Group {
         match self.groups_map.remove(&priority) {
             Some(group) => group,
             None => {
@@ -249,7 +246,7 @@ impl<Db: Keeper> Store<Db> {
         }
     }
 
-    fn check_msg_size_agains_store(&self, msg_byte_size: i32) -> Result<(), Error> {
+    fn check_msg_size_agains_store(&self, msg_byte_size: u32) -> Result<(), Error> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if msg_byte_size > store_max_byte_size {
                 return Err(Error::ExceedesStoreMax)
@@ -258,7 +255,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
-    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: i32, msg_byte_size: i32) -> Result<Group, Error> {
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: u32, msg_byte_size: u32) -> Result<Group, Error> {
         // check if the msg is too large for the target group
         if let Some(group_max_byte_size) = &group.max_byte_size {
             if &msg_byte_size > group_max_byte_size {
@@ -290,7 +287,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: i32, prune_type: PruneBy) -> Result<(), Error> {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(), Error> {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -315,7 +312,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: i32, msg_byte_size: i32) -> Result<(), Error> {
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(), Error> {
         if let Some(store_max_byte_size) = self.max_byte_size.clone() {
             if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
                 let mut groups_removed = vec![];
@@ -365,7 +362,7 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
-    fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: i32, msg_byte_size: i32) {
+    fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: u32, msg_byte_size: u32) {
         self.byte_size += msg_byte_size;                                          // increase store byte size
         self.id_to_group_map.insert(uuid.clone(), priority);            // insert the uuid into the uuid->priority map
         group.byte_size += msg_byte_size;                                         // increase the group byte size
@@ -444,7 +441,7 @@ impl<Db: Keeper> Store<Db> {
     /// 
     pub fn add(&mut self, packet: Packet) -> Result<Uuid, Error> {
 
-        let msg_byte_size = packet.msg.len() as i32;
+        let msg_byte_size = packet.msg.len() as u32;
 
         // check if the msg is too large for the store
         self.check_msg_size_agains_store(msg_byte_size)?;
@@ -534,7 +531,7 @@ impl<Db: Keeper> Store<Db> {
             Ok(_) => Ok(()),
             Err(db_error) => Err(Error::DbError(db_error))
         }?;
-        self.inc_msgs_deleted(1);
+        self.inc_msgs_deleted();
         Ok(())
     }
 
@@ -559,18 +556,17 @@ impl<Db: Keeper> Store<Db> {
     /// assert!(store.get(GetOptions::default()).unwrap().is_none());
     /// 
     /// ```
-    pub fn del_group(&mut self, priority: &i32) -> Result<(), Error> {
+    pub fn del_group(&mut self, priority: &u32) -> Result<(), Error> {
         if let Some(group) = self.groups_map.remove(priority) {
-            let msg_count = group.msgs_map.len() as i32;
             for (uuid, _msg_byte_size) in group.msgs_map.iter() {
                 match self.db.del(uuid) {
                     Ok(_) => Ok(()),
                     Err(error) => Err(Error::DbError(error))
                 }?;
                 self.id_to_group_map.remove(uuid);
+                self.inc_msgs_deleted();
             }
-            self.byte_size -= group.byte_size;
-            self.inc_msgs_deleted(msg_count);
+            self.byte_size -= group.byte_size;            
         }        
         Ok(())
     }
@@ -673,7 +669,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(uuid2, set[1].uuid);
     /// assert_eq!(uuid3, set[2].uuid);
     /// 
-    pub fn get_metadata(&mut self, range: (u32, u32), priority: Option<i32>) -> Vec<PacketMetaData> {
+    pub fn get_metadata(&mut self, range: (u32, u32), priority: Option<u32>) -> Vec<PacketMetaData> {
         let mut uuids = vec![];
         let mut iter_count: u32 = 0;
         let (start, end) = range;
@@ -721,7 +717,7 @@ impl<Db: Keeper> Store<Db> {
     /// Updates the defaults for a priority group
     /// 
     /// The method takes a GroupDefaults struct which contains a member: max_byte_size.
-    /// The max_byte_size member type is Option<i32>. This method will auto prune the group
+    /// The max_byte_size member type is Option<u32>. This method will auto prune the group
     /// if the group's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
@@ -746,7 +742,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: i32, defaults: &GroupDefaults) -> Result<(), Error> {
+    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(), Error> {
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
@@ -783,7 +779,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert!(store.group_defaults.get(&1).is_none()); 
     /// 
     /// ```
-    pub fn delete_group_defaults(&mut self, priority: i32) {
+    pub fn delete_group_defaults(&mut self, priority: u32) {
         self.group_defaults.remove(&priority);
         if let Some(group) = self.groups_map.get_mut(&priority) {
             group.max_byte_size = None;
@@ -793,7 +789,7 @@ impl<Db: Keeper> Store<Db> {
     /// Updates the defaults for the store
     /// 
     /// The method takes a StoreDefaults struct which contains a member: max_byte_size.
-    /// The max_byte_size member type is Option<i32>. This method will auto prune the store
+    /// The max_byte_size member type is Option<u32>. This method will auto prune the store
     /// if the store's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
@@ -820,7 +816,7 @@ impl<Db: Keeper> Store<Db> {
     /// ```
     pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(), Error> {
         self.max_byte_size = defaults.max_byte_size;
-        self.prune_store(None, i32::MAX, 0)
+        self.prune_store(None, u32::MAX, 0)
     }
 
 }
