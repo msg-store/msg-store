@@ -30,7 +30,7 @@ In src/main.rs
 * Messages that have been deleted have been so on instructions of the developer using the del method.
 * Messages that have been burned have been so automatically on insert or store/group defaults update once the
 max byte size limit has been reached.
-* The store can contain 2,147,483,647 priorities.
+* The store can contain 4,294,967,295 priorities.
 
 ## Example
 Four message are needed to be forwarded to a distant server.
