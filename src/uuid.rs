@@ -16,12 +16,25 @@ impl Uuid {
     pub fn to_string(&self) -> String {
         format!("{}-{}", self.timestamp, self.sequence)
     }
-    pub fn from_string(id: &str) -> Uuid {
+    pub fn from_string(id: &str) -> Result<Uuid, String> {
         let split_str = id.split("-").collect::<Vec<&str>>();
-        Uuid { 
-            timestamp: split_str[0].parse().expect("Could not parse timestamp"), 
-            sequence: split_str[1].parse().expect("Could not parse sequence")
-        }
+        
+        let timestamp: u128 = match split_str[0].parse() {
+            Ok(timestamp) => timestamp,
+            Err(error) => {
+                return Err(error.to_string())
+            }
+        };
+        let sequence: u32 = match split_str[1].parse() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                return Err(error.to_string())
+            }
+        };
+        Ok(Uuid { 
+            timestamp,
+            sequence
+        })
     }
 }
 

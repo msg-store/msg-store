@@ -607,7 +607,7 @@ mod tests {
 
         #[test]
         fn should_convert_a_str_to_uuid() {
-            assert_eq!(Uuid{ timestamp: 1636523479865480266, sequence: 1 }, Uuid::from_string("1636523479865480266-1"))
+            assert_eq!(Uuid{ timestamp: 1636523479865480266, sequence: 1 }, Uuid::from_string("1636523479865480266-1").unwrap())
         }
     }
 
