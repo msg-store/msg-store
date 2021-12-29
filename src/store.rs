@@ -60,19 +60,6 @@ impl RemovedMsgs {
     }
 }
 
-// pub struct Package {
-//     pub uuid: Uuid,
-//     pub priority: u32,
-//     pub msg: String,
-//     pub byte_size: u32
-// }
-
-#[derive(Debug, Clone)]
-pub struct StoredPacket {
-    pub uuid: Uuid,
-    pub msg: String
-}
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct PacketMetaData {
     pub uuid: Uuid,
@@ -113,16 +100,15 @@ pub struct Store {
 
 impl Store {
 
-    pub fn open() -> Result<Store, Error> {
-        let store = Store {
+    pub fn new() -> Store {
+        Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
             uuid_manager: UuidManager::default(),
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new()
-        };
-        Ok(store)
+        }
     }
 
     fn msg_excedes_max_byte_size(byte_size: &u32, max_byte_size: &u32, msg_byte_size: &u32) -> bool {
@@ -281,28 +267,45 @@ impl Store {
         self.groups_map.insert(priority, group);
     }
 
-    fn insert_data(&mut self, data: &PacketMetaData) -> Result<(), Error> {
+    // fn insert_data(&mut self, data: &PacketMetaData) -> Result<(), Error> {
 
-        // check if the msg is too large for the store
-        self.check_msg_size_agains_store(data.byte_size)?;
+    //     // check if the msg is too large for the store
+    //     self.check_msg_size_agains_store(data.byte_size)?;
 
-        // check if the target group exists
-        // create if id does not
-        let group = self.get_group(data.priority);
+    //     // check if the target group exists
+    //     // create if id does not
+    //     let group = self.get_group(data.priority);
 
-        // check if the msg is too large for the target group
-        let mut group = self.check_msg_size_against_group(group, data.priority, data.byte_size)?;
+    //     // check if the msg is too large for the target group
+    //     let mut group = self.check_msg_size_against_group(group, data.priority, data.byte_size)?;
 
-        // prune group if needed
-        self.prune_group(&mut group, data.byte_size, PruneBy::Group)?;
+    //     // prune group if needed
+    //     self.prune_group(&mut group, data.byte_size, PruneBy::Group)?;
 
-        // prune store
-        self.prune_store(Some(&mut group), data.priority, data.byte_size)?;
+    //     // prune store
+    //     self.prune_store(Some(&mut group), data.priority, data.byte_size)?;
 
-        // insert msg
-        self.insert_msg(group, data.uuid, data.priority, data.byte_size);
+    //     // insert msg
+    //     self.insert_msg(group, data.uuid, data.priority, data.byte_size);
 
-        Ok(())
+    //     Ok(())
+    // }
+
+    /// Adds a msg to the store when no uuid is provided
+    /// see also: add_with_uuid
+    /// 
+    /// # Example
+    /// ```
+    /// use msg_store::Store;
+    /// 
+    /// let mut store = Store::new();
+    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// 
+    /// ```
+    /// 
+    pub fn add(&mut self, priority: u32, msg: &str) -> Result<AddResult, Error> {
+        let uuid = self.uuid_manager.next();
+        self.add_with_uuid(uuid, priority, msg)        
     }
 
     /// Adds a msg to the store
@@ -328,15 +331,15 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{ Packet, open };
+    /// use msg_store::Store;
     /// 
-    /// let mut store = open();
-    /// let uuid = store.add(Packet::new(1, "my message".to_string())).unwrap();
+    /// let mut store = Store::new();
+    /// let uuid = store.uuid();
+    /// let add_result = store.add_with_uuid(uuid, 1, "my message".to_string()).unwrap();
     /// 
     /// ```
-    /// 
-    pub fn add(&mut self, priority: u32, msg: String) -> Result<AddResult, Error> {
-
+    ///
+    pub fn add_with_uuid(&mut self, uuid: Uuid, priority: u32, msg: &str) -> Result<AddResult, Error> {
         let msg_byte_size = msg.len() as u32;
 
         // check if the msg is too large for the store
@@ -366,11 +369,9 @@ impl Store {
         groups_removed.append(&mut groups_removed_from_store);
 
         // insert msg
-        let uuid = self.uuid_manager.next();                                 // get uuid
         self.insert_msg(group, uuid, priority, msg_byte_size);
         
         Ok(AddResult{ uuid, bytes_removed, msgs_removed, groups_removed })
-        
     }
     
     /// Deletes a message from the store
@@ -385,10 +386,10 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{ Packet, open };
+    /// use msg_store::Store;
     /// 
-    /// let mut store = open();
-    /// let uuid = store.add(Packet::new(1, "my message".to_string())).unwrap();
+    /// let mut store = Store::new();
+    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
     /// store.del(&uuid).unwrap();
     /// 
     /// ```
@@ -436,13 +437,13 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{ Packet, open, GetOptions };
+    /// use msg_store::Store;
     /// 
-    /// let mut store = open();
-    /// store.add(Packet::new(1, "my message".to_string())).unwrap();
+    /// let mut store = Store::new();
+    /// store.add(1, "my message".to_string()).unwrap();
     /// store.del_group(&1).unwrap();
     /// 
-    /// assert!(store.get(GetOptions::default()).unwrap().is_none());
+    /// assert!(store.get(None, None, false).unwrap().is_none());
     /// 
     /// ```
     pub fn del_group(&mut self, priority: &u32) -> Result<(), Error> {
@@ -467,18 +468,17 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{ Packet, open, GetOptions };
+    /// use msg_store::Store;
     /// 
-    /// let mut store = open();
-    /// let uuid = store.add(Packet::new(1, "my message".to_string())).unwrap();
-    /// let mut get_options = GetOptions::default().uuid(uuid);
-    /// let my_message = store.get(GetOptions::default().uuid(uuid)).unwrap();
+    /// let mut store = Store::new();
+    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// let my_message = store.get(Some(uuid), None, false).unwrap();
     /// assert!(my_message.is_some());
     /// 
-    /// let my_message = store.get(GetOptions::default().priority(1)).unwrap();
+    /// let my_message = store.get(None, Some(1), false).unwrap();
     /// assert!(my_message.is_some());
     /// 
-    /// let my_message = store.get(GetOptions::default()).unwrap();
+    /// let my_message = store.get(None, None, false).unwrap();
     /// assert!(my_message.is_some());
     /// 
     /// ```
@@ -543,11 +543,13 @@ impl Store {
     /// # Example
     /// 
     /// let mut store = open();
-    /// let uuid1 = store.add(Packet::new(1, "my message".to_string())).unwrap();
-    /// let uuid2 = store.add(Packet::new(1, "my second message".to_string())).unwrap();
-    /// let uuid3 = store.add(Packet::new(1, "my thrid message".to_string())).unwrap();
+    /// let uuid1 = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// let uuid2 = store.add(1, "my second message".to_string()).unwrap().uuid;
+    /// let uuid3 = store.add(1, "my thrid message".to_string()).unwrap().uuid;
     /// 
-    /// let set = store.get_metadata((0,2), Some(1));
+    /// let range = (0,2);
+    /// let priority = Some(1);
+    /// let set = store.get_metadata(range, priority);
     /// assert_eq!(uuid1, set[0].uuid);
     /// assert_eq!(uuid2, set[1].uuid);
     /// assert_eq!(uuid3, set[2].uuid);
@@ -608,15 +610,11 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{
-    ///     Packet,
-    ///     store::GroupDefaults,
-    ///     open
-    /// };
+    /// use msg_store::store::{Store,GroupDefaults};
     /// 
-    /// let mut store = open();
-    /// store.add(Packet::new(1, "foo".to_string())).unwrap();
-    /// store.add(Packet::new(1, "bar".to_string())).unwrap();
+    /// let mut store = Store::new();
+    /// store.add(1, "foo".to_string()).unwrap();
+    /// store.add(1, "bar".to_string()).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });
@@ -643,16 +641,12 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{
-    ///     Packet,
-    ///     store::GroupDefaults,
-    ///     open
-    /// };
+    /// use msg_store::store::{Store,GroupDefaults};
     /// 
-    /// let mut store = open();
+    /// let mut store = Store::new();
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
-    /// store.add(Packet::new(1, "foo".to_string())).unwrap();
-    /// store.add(Packet::new(1, "bar".to_string())).unwrap();
+    /// store.add(1, "foo".to_string()).unwrap();
+    /// store.add(1, "bar".to_string()).unwrap();
     /// 
     /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
     /// assert_eq!(Some(6), group_1.max_byte_size);
@@ -684,15 +678,11 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::{
-    ///     Packet,
-    ///     store::StoreDefaults,
-    ///     open
-    /// };
+    /// use msg_store::store::{Store, StoreDefaults};
     /// 
-    /// let mut store = open();
-    /// store.add(Packet::new(1, "foo".to_string())).unwrap();
-    /// store.add(Packet::new(1, "bar".to_string())).unwrap();
+    /// let mut store = Store::new();
+    /// store.add(1, "foo".to_string()).unwrap();
+    /// store.add(1, "bar".to_string()).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();
@@ -704,6 +694,10 @@ impl Store {
     pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u32, Vec<u32>, Vec<Uuid>), Error> {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, u32::MAX, 0)
+    }
+
+    pub fn uuid(&mut self) -> Uuid {
+        self.uuid_manager.next()
     }
 
 }
