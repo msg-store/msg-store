@@ -299,7 +299,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// let uuid = store.add(1, "my message").unwrap().uuid;
     /// 
     /// ```
     /// 
@@ -335,7 +335,7 @@ impl Store {
     /// 
     /// let mut store = Store::new();
     /// let uuid = store.uuid();
-    /// let add_result = store.add_with_uuid(uuid, 1, "my message".to_string()).unwrap();
+    /// let add_result = store.add_with_uuid(uuid, 1, "my message").unwrap();
     /// 
     /// ```
     ///
@@ -389,7 +389,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// let uuid = store.add(1, "my message").unwrap().uuid;
     /// store.del(&uuid).unwrap();
     /// 
     /// ```
@@ -440,7 +440,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "my message".to_string()).unwrap();
+    /// store.add(1, "my message").unwrap();
     /// store.del_group(&1).unwrap();
     /// 
     /// assert!(store.get(None, None, false).unwrap().is_none());
@@ -471,7 +471,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".to_string()).unwrap().uuid;
+    /// let uuid = store.add(1, "my message").unwrap().uuid;
     /// let my_message = store.get(Some(uuid), None, false).unwrap();
     /// assert!(my_message.is_some());
     /// 
@@ -543,9 +543,9 @@ impl Store {
     /// # Example
     /// 
     /// let mut store = open();
-    /// let uuid1 = store.add(1, "my message".to_string()).unwrap().uuid;
-    /// let uuid2 = store.add(1, "my second message".to_string()).unwrap().uuid;
-    /// let uuid3 = store.add(1, "my thrid message".to_string()).unwrap().uuid;
+    /// let uuid1 = store.add(1, "my message").unwrap().uuid;
+    /// let uuid2 = store.add(1, "my second message").unwrap().uuid;
+    /// let uuid3 = store.add(1, "my thrid message").unwrap().uuid;
     /// 
     /// let range = (0,2);
     /// let priority = Some(1);
@@ -613,8 +613,8 @@ impl Store {
     /// use msg_store::store::{Store,GroupDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo".to_string()).unwrap();
-    /// store.add(1, "bar".to_string()).unwrap();
+    /// store.add(1, "foo").unwrap();
+    /// store.add(1, "bar").unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });
@@ -645,8 +645,8 @@ impl Store {
     /// 
     /// let mut store = Store::new();
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
-    /// store.add(1, "foo".to_string()).unwrap();
-    /// store.add(1, "bar".to_string()).unwrap();
+    /// store.add(1, "foo").unwrap();
+    /// store.add(1, "bar").unwrap();
     /// 
     /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
     /// assert_eq!(Some(6), group_1.max_byte_size);
@@ -681,8 +681,8 @@ impl Store {
     /// use msg_store::store::{Store, StoreDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo".to_string()).unwrap();
-    /// store.add(1, "bar".to_string()).unwrap();
+    /// store.add(1, "foo").unwrap();
+    /// store.add(1, "bar").unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();
