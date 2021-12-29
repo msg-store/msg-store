@@ -299,13 +299,13 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message").unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, priority: u32, msg: &str) -> Result<AddResult, Error> {
-        let uuid = self.uuid_manager.next();
-        self.add_with_uuid(uuid, priority, msg)        
+    pub fn add(&mut self, priority: u32, msg_byte_size: u32) -> Result<AddResult, Error> {
+        let uuid = self.uuid_manager.next(priority);
+        self.add_with_uuid(uuid, msg_byte_size)        
     }
 
     /// Adds a msg to the store
@@ -334,13 +334,14 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.uuid();
-    /// let add_result = store.add_with_uuid(uuid, 1, "my message").unwrap();
+    /// let uuid = store.uuid(1);
+    /// let add_result = store.add_with_uuid(uuid, "my message".len() as u32).unwrap();
     /// 
     /// ```
     ///
-    pub fn add_with_uuid(&mut self, uuid: Uuid, priority: u32, msg: &str) -> Result<AddResult, Error> {
-        let msg_byte_size = msg.len() as u32;
+    pub fn add_with_uuid(&mut self, uuid: Uuid, msg_byte_size: u32) -> Result<AddResult, Error> {
+        // let msg_byte_size = msg.len() as u32;
+        let priority = uuid.priority;
 
         // check if the msg is too large for the store
         self.check_msg_size_agains_store(msg_byte_size)?;
@@ -389,7 +390,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message").unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
     /// store.del(&uuid).unwrap();
     /// 
     /// ```
@@ -440,7 +441,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "my message").unwrap();
+    /// store.add(1, "my message".len() as u32).unwrap();
     /// store.del_group(&1).unwrap();
     /// 
     /// assert!(store.get(None, None, false).unwrap().is_none());
@@ -471,7 +472,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message").unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
     /// let my_message = store.get(Some(uuid), None, false).unwrap();
     /// assert!(my_message.is_some());
     /// 
@@ -482,7 +483,7 @@ impl Store {
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<u32>, reverse: bool) -> Result<Option<Uuid>, Error> {
+    pub fn get(&self, uuid: Option<Uuid>, priority: Option<u32>, reverse: bool) -> Result<Option<Uuid>, Error> {
 
         if let Some(uuid) = uuid {
 
@@ -499,8 +500,8 @@ impl Store {
             };
 
             let uuid_option = match !reverse {
-                true => group.msgs_map.keys().next(),
-                false => group.msgs_map.keys().rev().next()
+                true => group.msgs_map.keys().rev().next(),
+                false => group.msgs_map.keys().next()
             };
 
             match uuid_option {
@@ -522,8 +523,8 @@ impl Store {
             };
 
             let next_uuid_option = match !reverse {
-                true => group.msgs_map.keys().next(),
-                false => group.msgs_map.keys().rev().next()
+                true => group.msgs_map.keys().rev().next(),
+                false => group.msgs_map.keys().next()
             };
 
             match next_uuid_option {
@@ -531,6 +532,72 @@ impl Store {
                 None => Err(Error::SyncError)
             }
 
+        }
+    }
+
+    pub fn get_n(&self, n: usize, starting_priority: Option<u32>, after_uuid: Option<Uuid>, reverse: bool) -> Vec<Uuid> {
+        if let Some(starting_priority) = starting_priority {
+            if let Some(after_uuid) = after_uuid {
+                if !reverse {
+                    self.id_to_group_map.iter()
+                        .rev() // start with highest uuid
+                        .filter(|(uuid, _group)| uuid.priority <= starting_priority && uuid < &&after_uuid)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                } else {
+                    self.id_to_group_map.iter()
+                        .filter(|(uuid, _group)| uuid.priority <= starting_priority && uuid < &&after_uuid)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                }
+            } else {
+                if !reverse {
+                    self.id_to_group_map.iter()
+                        .rev() // start with highest uuid
+                        .filter(|(uuid, _group)| uuid.priority <= starting_priority)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                } else {
+                    self.id_to_group_map.iter()
+                        .filter(|(uuid, _group)| uuid.priority <= starting_priority)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                }
+            }
+        } else {
+            if let Some(after_uuid) = after_uuid {
+                if !reverse {
+                    self.id_to_group_map.iter()
+                        .rev() // start with highest uuid
+                        .filter(|(uuid, _group)| uuid < &&after_uuid)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                } else {
+                    self.id_to_group_map.iter()
+                        .filter(|(uuid, _group)| uuid < &&after_uuid)
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                }
+            } else {
+                if !reverse {
+                    self.id_to_group_map.iter()
+                        .rev() // start with highest uuid
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                } else {
+                    self.id_to_group_map.iter()
+                        .map(|(uuid, _group)| uuid.clone())
+                        .take(n)
+                        .collect::<Vec<Uuid>>()
+                }
+            }
         }
     }
 
@@ -543,9 +610,9 @@ impl Store {
     /// # Example
     /// 
     /// let mut store = open();
-    /// let uuid1 = store.add(1, "my message").unwrap().uuid;
-    /// let uuid2 = store.add(1, "my second message").unwrap().uuid;
-    /// let uuid3 = store.add(1, "my thrid message").unwrap().uuid;
+    /// let uuid1 = store.add(1, "my message".len() as u32).unwrap().uuid;
+    /// let uuid2 = store.add(1, "my second message".len() as u32).unwrap().uuid;
+    /// let uuid3 = store.add(1, "my thrid message".len() as u32).unwrap().uuid;
     /// 
     /// let range = (0,2);
     /// let priority = Some(1);
@@ -579,7 +646,7 @@ impl Store {
             }
         } else {
             'group: for (priority, group) in self.groups_map.iter() {
-                'msg: for (uuid, msg_byte_size) in group.msgs_map.iter() {
+                'msg: for (uuid, msg_byte_size) in group.msgs_map.iter().rev() {
                     if primer_iter < start {
                         primer_iter += 1;
                         continue 'msg;
@@ -613,8 +680,8 @@ impl Store {
     /// use msg_store::store::{Store,GroupDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo").unwrap();
-    /// store.add(1, "bar").unwrap();
+    /// store.add(1, "foo".len() as u32).unwrap();
+    /// store.add(1, "bar".len() as u32).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });
@@ -645,8 +712,8 @@ impl Store {
     /// 
     /// let mut store = Store::new();
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
-    /// store.add(1, "foo").unwrap();
-    /// store.add(1, "bar").unwrap();
+    /// store.add(1, "foo".len() as u32).unwrap();
+    /// store.add(1, "bar".len() as u32).unwrap();
     /// 
     /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
     /// assert_eq!(Some(6), group_1.max_byte_size);
@@ -681,8 +748,8 @@ impl Store {
     /// use msg_store::store::{Store, StoreDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo").unwrap();
-    /// store.add(1, "bar").unwrap();
+    /// store.add(1, "foo".len() as u32).unwrap();
+    /// store.add(1, "bar".len() as u32).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();
@@ -696,8 +763,8 @@ impl Store {
         self.prune_store(None, u32::MAX, 0)
     }
 
-    pub fn uuid(&mut self) -> Uuid {
-        self.uuid_manager.next()
+    pub fn uuid(&mut self, priority: u32) -> Uuid {
+        self.uuid_manager.next(priority)
     }
 
 }
