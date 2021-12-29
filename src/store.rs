@@ -108,10 +108,7 @@ pub struct Store {
     pub group_defaults: BTreeMap<u32, GroupDefaults>,
     pub uuid_manager: UuidManager,
     pub id_to_group_map: BTreeMap<Uuid, u32>,
-    pub groups_map: BTreeMap<u32, Group>,
-    pub msgs_inserted: u32,
-    pub msgs_deleted: u32,
-    pub msgs_pruned: u32
+    pub groups_map: BTreeMap<u32, Group>
 }
 
 impl Store {
@@ -123,51 +120,9 @@ impl Store {
             group_defaults: BTreeMap::new(),
             uuid_manager: UuidManager::default(),
             id_to_group_map: BTreeMap::new(),
-            groups_map: BTreeMap::new(),
-            msgs_inserted: 0,
-            msgs_deleted: 0,
-            msgs_pruned: 0
+            groups_map: BTreeMap::new()
         };
         Ok(store)
-    }
-
-    /// A method for reseting the inserted messages count
-    pub fn clear_msgs_inserted_count(&mut self) {
-        self.msgs_inserted = 0;
-    }
-
-    fn inc_msgs_inserted_count(&mut self) {
-        if self.msgs_inserted == u32::MAX {
-            self.msgs_inserted = 1;
-        } else {
-            self.msgs_inserted += 1;
-        }
-    }
-
-    /// A method for reseting the burned messages count
-    pub fn clear_msgs_pruned_count(&mut self) {
-        self.msgs_pruned = 0;
-    }
-
-    fn inc_msgs_pruned_count(&mut self) {
-        if self.msgs_pruned == u32::MAX {
-            self.msgs_pruned = 1;
-        } else {
-            self.msgs_pruned += 1;
-        }
-    }
-
-    /// A method for reseting the deleted messages count
-    pub fn clear_msgs_deleted_count(&mut self) {
-        self.msgs_deleted = 0;
-    }
-
-    fn inc_msgs_deleted(&mut self) {
-        if self.msgs_deleted == u32::MAX {
-            self.msgs_deleted = 1;
-        } else {
-            self.msgs_deleted += 1;
-        }
     }
 
     fn msg_excedes_max_byte_size(byte_size: &u32, max_byte_size: &u32, msg_byte_size: &u32) -> bool {
@@ -182,7 +137,6 @@ impl Store {
         self.id_to_group_map.remove(&uuid);
         self.byte_size -= byte_size;
         group.byte_size -= byte_size;
-        self.inc_msgs_pruned_count();
         Ok(())
     }
     
@@ -415,8 +369,6 @@ impl Store {
         let uuid = self.uuid_manager.next();                                 // get uuid
         self.insert_msg(group, uuid, priority, msg_byte_size);
         
-        self.inc_msgs_inserted_count();
-
         Ok(AddResult{ uuid, bytes_removed, msgs_removed, groups_removed })
         
     }
@@ -469,7 +421,6 @@ impl Store {
             self.groups_map.remove(&priority);
         }
         self.id_to_group_map.remove(&uuid);
-        self.inc_msgs_deleted();
         Ok(())
     }
 
@@ -498,7 +449,6 @@ impl Store {
         if let Some(group) = self.groups_map.remove(priority) {
             for (uuid, _msg_byte_size) in group.msgs_map.iter() {
                 self.id_to_group_map.remove(uuid);
-                self.inc_msgs_deleted();
             }
             self.byte_size -= group.byte_size;            
         }        

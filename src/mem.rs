@@ -70,14 +70,6 @@ mod tests {
         }
 
         #[test]
-        fn should_increase_inserted_msg_count() {
-            let mut store = Store::open().unwrap();
-            assert_eq!(0, store.msgs_inserted);
-            store.add(1, "1234567890".to_string()).expect("Could not add msg");
-            assert_eq!(1, store.msgs_inserted);
-        }
-
-        #[test]
         fn should_prune_store_byte_size_to_10_when_store_max_byte_size_exists() {
             let mut store = Store::open().unwrap();
             store.max_byte_size = Some(10);
@@ -175,21 +167,6 @@ mod tests {
             store.add(1, "1234567890".to_string()).expect("Could not add msg");
             let group = store.groups_map.get(&1).expect("Could not get group");
             assert_eq!(Some(10), group.max_byte_size);
-        }
-
-        #[test]
-        fn should_increase_burned_msg_count() {
-            let mut store = Store::open().unwrap();
-            store.max_byte_size = Some(3);
-            store.add(1, "foo".to_string()).expect("Could not insert msg");
-            assert_eq!(0, store.msgs_pruned);
-            store.add(1, "bar".to_string()).expect("Could not insert msg");
-            assert_eq!(1, store.msgs_pruned);
-            store.max_byte_size = None;
-            let mut group = store.groups_map.get_mut(&1).expect("Could not find group");
-            group.max_byte_size = Some(3);
-            store.add(1, "baz".to_string()).expect("Could not insert msg");
-            assert_eq!(2, store.msgs_pruned);
         }
 
         #[test]
@@ -332,35 +309,6 @@ mod tests {
             assert!(store.groups_map.get(&1).is_none())
         }
 
-        #[test]
-        fn should_increase_bytes_deleted_count() {
-            let mut store = Store::open().unwrap();
-            let uuid = store.add(1, "foo".to_string()).unwrap().uuid;
-            assert_eq!(0, store.msgs_deleted);
-            store.del(&uuid).unwrap();
-            assert_eq!(1, store.msgs_deleted);
-        }
-
-        #[test]
-        fn should_reset_bytes_deleted_count_and_add_diff() {
-            let mut store = Store::open().unwrap();
-            let uuid = store.add(1, "foo".to_string()).unwrap().uuid;
-            store.msgs_deleted = u32::MAX;
-            assert_eq!(u32::MAX, store.msgs_deleted);
-            store.del(&uuid).unwrap();
-            assert_eq!(1, store.msgs_deleted);
-        }
-
-        #[test]
-        fn should_clear_deleted_count() {
-            let mut store = Store::open().unwrap();
-            let uuid = store.add(1, "foo".to_string()).unwrap().uuid;
-            assert_eq!(0, store.msgs_deleted);
-            store.del(&uuid).unwrap();
-            store.clear_msgs_deleted_count();
-            assert_eq!(0, store.msgs_deleted);
-        }
-
     }
 
     mod del_group {
@@ -389,47 +337,6 @@ mod tests {
             assert_eq!(6, group.byte_size);
             store.del_group(&1).unwrap();
             assert_eq!(true, store.groups_map.get(&1).is_none());
-        }
-
-        #[test]
-        fn should_increase_bytes_deleted_count() {
-            let mut store = Store::open().unwrap();
-            store.add(1, "foo".to_string()).unwrap();
-            store.add(1, "bar".to_string()).unwrap();
-            let group = store.groups_map.get(&1).expect("Could get group ref");
-            assert_eq!(6, store.byte_size);
-            assert_eq!(6, group.byte_size);
-            store.del_group(&1).unwrap();
-            assert_eq!(2, store.msgs_deleted);
-        }
-
-        #[test]
-        fn should_reset_bytes_deleted_count_and_add_diff() {
-            let mut store = Store::open().unwrap();
-            store.add(1, "foo".to_string()).unwrap();
-            store.add(1, "bar".to_string()).unwrap();
-            let group = store.groups_map.get(&1).expect("Could get group ref");
-            assert_eq!(6, store.byte_size);
-            assert_eq!(6, group.byte_size);
-            store.msgs_deleted = u32::MAX;
-            assert_eq!(u32::MAX, store.msgs_deleted);
-            store.del_group(&1).unwrap();
-            assert_eq!(2, store.msgs_deleted);
-        }
-
-        #[test]
-        fn should_clear_deleted_count() {
-            let mut store = Store::open().unwrap();
-            store.add(1, "foo".to_string()).unwrap();
-            store.add(1, "bar".to_string()).unwrap();
-            let group = store.groups_map.get(&1).expect("Could get group ref");
-            assert_eq!(6, store.byte_size);
-            assert_eq!(6, group.byte_size);
-            store.msgs_deleted = u32::MAX;
-            assert_eq!(u32::MAX, store.msgs_deleted);
-            store.del_group(&1).unwrap();
-            store.clear_msgs_deleted_count();
-            assert_eq!(0, store.msgs_deleted);
         }
 
     }
@@ -463,7 +370,6 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find group");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
-            assert_eq!(1, store.msgs_pruned);
         }
 
     }
@@ -505,34 +411,7 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could not find defaults");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
-            assert_eq!(1, store.msgs_pruned);
         }
-
-    }
-
-    mod clear_counts {
-        use crate::store::Store;
-
-        #[test]
-        fn should_clear_msgs_pruned_count() {
-            let mut store = Store::open().unwrap();
-            store.max_byte_size = Some(3);
-            store.add(1, "foo".to_string()).unwrap();
-            store.add(1, "foo".to_string()).unwrap();
-            assert_eq!(1, store.msgs_pruned);
-            store.clear_msgs_pruned_count();
-            assert_eq!(0, store.msgs_pruned);
-        }
-
-        #[test]
-        fn should_clear_msgs_inserted_count() {
-            let mut store = Store::open().unwrap();
-            assert_eq!(0, store.msgs_inserted);
-            store.add(1, "foo".to_string()).unwrap();
-            assert_eq!(1, store.msgs_inserted);
-            store.clear_msgs_inserted_count();
-            assert_eq!(0, store.msgs_inserted);
-        }   
 
     }
 
