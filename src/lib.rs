@@ -5,8 +5,7 @@ pub mod store;
 pub mod uuid;
 
 pub use crate::{
-    errors::DbError,
-    store::{ PacketMetaData, Store},
-    mem::{ MemDb, open },
+    store::Store,
+    mem::MemDb,
     uuid::Uuid
 };
