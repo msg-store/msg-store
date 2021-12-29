@@ -1,6 +1,5 @@
 use crate::{
     errors::Error,
-    Keeper,
     uuid::{
         UuidManager,
         Uuid
@@ -12,6 +11,10 @@ use std::collections::BTreeMap;
 enum PruneBy {
     Group,
     Store
+}
+pub enum Deleted {
+    True,
+    False
 }
 
 pub struct StoreDefaults {
@@ -57,65 +60,32 @@ impl RemovedMsgs {
     }
 }
 
-pub struct Package {
-    pub uuid: Uuid,
-    pub priority: u32,
-    pub msg: String,
-    pub byte_size: u32
-}
+// pub struct Package {
+//     pub uuid: Uuid,
+//     pub priority: u32,
+//     pub msg: String,
+//     pub byte_size: u32
+// }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StoredPacket {
     pub uuid: Uuid,
     pub msg: String
 }
 
-#[derive(Debug, Clone)]
-pub struct Packet {
-    priority: u32,
-    msg: String
-}
-impl Packet {
-    pub fn new(priority: u32, msg: String) -> Packet {
-        Packet { priority, msg }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct PacketMetaData {
     pub uuid: Uuid,
     pub priority: u32,
     pub byte_size: u32
 }
 
-#[derive(Debug, Clone)]
-pub struct GetOptions {
-    pub uuid: Option<Uuid>,
-    pub priority: Option<u32>,
-    pub reverse: bool
-}
-impl GetOptions {
-    pub fn default() -> GetOptions {
-        GetOptions {
-            uuid: None,
-            priority: None,
-            reverse: false
-        }
-    }
-    pub fn uuid(mut self, uuid: Uuid) -> Self {
-        self.uuid = Some(uuid);
-        self
-    }
-    pub fn priority(mut self, priority: u32) -> Self {
-        self.priority = Some(priority);
-        self
-    }
-    pub fn reverse(mut self, reverse: bool) -> Self {
-        self.reverse = reverse;
-        self
-    }
-}
-
+pub struct AddResult {
+    pub uuid: Uuid,
+    pub bytes_removed: u32,
+    pub groups_removed: Vec<u32>,
+    pub msgs_removed: Vec<Uuid>
+} 
 
 /// The base unit which stores information about inserted messages and priority groups
 /// to determine which messages should be forwarded or burned first.
@@ -132,12 +102,11 @@ impl GetOptions {
 /// Messages that have been deleted have been so on instructions of the developer using the del method.
 /// Messages that have been burned have been so automatically on insert or store/group defaults update once the
 /// max bytesize limit has been reached.
-pub struct Store<Db: Keeper> {
+pub struct Store {
     pub max_byte_size: Option<u32>,
     pub byte_size: u32,
     pub group_defaults: BTreeMap<u32, GroupDefaults>,
     pub uuid_manager: UuidManager,
-    pub db: Db,
     pub id_to_group_map: BTreeMap<Uuid, u32>,
     pub groups_map: BTreeMap<u32, Group>,
     pub msgs_inserted: u32,
@@ -145,32 +114,20 @@ pub struct Store<Db: Keeper> {
     pub msgs_pruned: u32
 }
 
-impl<Db: Keeper> Store<Db> {
+impl Store {
 
-    pub fn open(db: Db) -> Result<Store<Db>, Error> {        
-        let mut store = Store {
+    pub fn open() -> Result<Store, Error> {
+        let store = Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
             uuid_manager: UuidManager::default(),
-            db,
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new(),
             msgs_inserted: 0,
             msgs_deleted: 0,
-            msgs_pruned: 0,
-            // msg_cache_max_byte_size: 0,
-            // msg_cache_byte_size: 0,
-            // msg_cache: BTreeMap::new()
+            msgs_pruned: 0
         };
-        let mut data = match store.db.fetch() {
-            Ok(data) => Ok(data),
-            Err(db_error) => Err(Error::DbError(db_error))
-        }?;
-        data.sort();
-        data.iter().map(|data| -> Result<(), Error> {
-            store.insert_data(&data)
-        }).collect::<Result<(), Error>>()?;
         Ok(store)
     }
 
@@ -225,10 +182,6 @@ impl<Db: Keeper> Store<Db> {
         self.id_to_group_map.remove(&uuid);
         self.byte_size -= byte_size;
         group.byte_size -= byte_size;
-        match self.db.del(&uuid) {
-            Ok(()) => Ok(()),
-            Err(db_error) => Err(Error::DbError(db_error))
-        }?;
         self.inc_msgs_pruned_count();
         Ok(())
     }
@@ -287,16 +240,16 @@ impl<Db: Keeper> Store<Db> {
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(), Error> {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(u32, Vec<Uuid>), Error> {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
         };
+        let mut removed_msgs = vec![];
+        let mut bytes_removed = 0;
         if let Some(max_byte_size) = &max_byte_size {            
             if Self::msg_excedes_max_byte_size(&byte_size, max_byte_size, &msg_byte_size) {
                 // prune group
-                let mut removed_msgs = vec![];
-                let mut bytes_removed = 0;
                 for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
                     if !Self::msg_excedes_max_byte_size(&(byte_size - bytes_removed), max_byte_size, &msg_byte_size) {
                         break;
@@ -309,57 +262,61 @@ impl<Db: Keeper> Store<Db> {
                 }
             }
         }
-        Ok(())
+        Ok((bytes_removed, removed_msgs))
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(), Error> {
-        if let Some(store_max_byte_size) = self.max_byte_size.clone() {
-            if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
-                let mut groups_removed = vec![];
-                let mut all_removed_msgs = vec![];
-                let mut bytes_removed = 0;
-                'groups: for (priority, group) in self.groups_map.iter_mut() {
-                    if &msg_priority < priority {
-                        break 'groups;
-                    }
-                    if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                        break 'groups;
-                    }
-                    let mut removed_msgs = RemovedMsgs::new(*priority);
-                    'messages: for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
-                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
-                            break 'messages;
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(u32, Vec<u32>, Vec<Uuid>), Error> {
+        let mut groups_removed = vec![];
+        let mut all_removed_msgs = vec![];
+        let mut bytes_removed = 0;
+        {
+            if let Some(store_max_byte_size) = self.max_byte_size.clone() {
+                if Self::msg_excedes_max_byte_size(&self.byte_size, &store_max_byte_size, &msg_byte_size) {
+                    'groups: for (priority, group) in self.groups_map.iter_mut() {
+                        if &msg_priority < priority {
+                            break 'groups;
                         }
-                        bytes_removed += group_msg_byte_size;
-                        removed_msgs.add(uuid.clone());
+                        if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                            break 'groups;
+                        }
+                        let mut removed_msgs = RemovedMsgs::new(*priority);
+                        'messages: for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
+                            if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                                break 'messages;
+                            }
+                            bytes_removed += group_msg_byte_size;
+                            removed_msgs.add(uuid.clone());
+                        }
+                        if group.byte_size == 0 {
+                            groups_removed.push(*priority);
+                        }
+                        all_removed_msgs.push(removed_msgs);
                     }
-                    if group.byte_size == 0 {
-                        groups_removed.push(*priority);
+                    // get groups of msgs that where removed
+                    for group_data in &all_removed_msgs {
+                        let mut group = match self.groups_map.remove(&group_data.priority) {
+                            Some(group) => Ok(group),
+                            None => Err(Error::SyncError)
+                        }?;
+                        for uuid in &group_data.msgs {
+                            self.remove_msg(&uuid, &mut group)?;
+                        }
+                        self.groups_map.insert(group_data.priority, group);
                     }
-                    all_removed_msgs.push(removed_msgs);
-                }
-                // get groups of msgs that where removed
-                for group_data in all_removed_msgs {
-                    let mut group = match self.groups_map.remove(&group_data.priority) {
-                        Some(group) => Ok(group),
-                        None => Err(Error::SyncError)
-                    }?;
-                    for uuid in group_data.msgs {
-                        self.remove_msg(&uuid, &mut group)?;
+                    for priority in &groups_removed {
+                        self.groups_map.remove(&priority);
                     }
-                    self.groups_map.insert(group_data.priority, group);
-                }
-                for priority in groups_removed {
-                    self.groups_map.remove(&priority);
-                }
-
-                // prune group again
-                if let Some(group) = group {
-                    self.prune_group(group, msg_byte_size, PruneBy::Store)?;
-                }
-            }            
+    
+                    // prune group again
+                    if let Some(group) = group {
+                        self.prune_group(group, msg_byte_size, PruneBy::Store)?;
+                    }
+                }            
+            }
         }
-        Ok(())
+        
+        let msgs_removed: Vec<Uuid> = all_removed_msgs.into_iter().map(|removed_msgs| removed_msgs.msgs).flatten().collect();
+        Ok((bytes_removed, groups_removed, msgs_removed))
     }
 
     fn insert_msg(&mut self, mut group: Group, uuid: Uuid, priority: u32, msg_byte_size: u32) {
@@ -394,21 +351,6 @@ impl<Db: Keeper> Store<Db> {
         Ok(())
     }
 
-    fn get_stored_packet(&mut self, uuid: Uuid) -> Result<Option<StoredPacket>, Error> {
-        let possible_msg = match self.db.get(&uuid) {
-            Ok(data) => Ok(data),
-            Err(db_error) => Err(Error::DbError(db_error))
-        }?;
-        if let Some(msg) = possible_msg {
-            Ok(Some(StoredPacket {
-                uuid,
-                msg
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Adds a msg to the store
     /// 
     /// The message itself is written to disk as well as metadata about the message
@@ -439,43 +381,43 @@ impl<Db: Keeper> Store<Db> {
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, packet: Packet) -> Result<Uuid, Error> {
+    pub fn add(&mut self, priority: u32, msg: String) -> Result<AddResult, Error> {
 
-        let msg_byte_size = packet.msg.len() as u32;
+        let msg_byte_size = msg.len() as u32;
 
         // check if the msg is too large for the store
         self.check_msg_size_agains_store(msg_byte_size)?;
 
         // check if the target group exists
         // create if id does not
-        let group = self.get_group(packet.priority);
+        let group = self.get_group(priority);
 
         // check if the msg is too large for the target group
-        let mut group = self.check_msg_size_against_group(group, packet.priority, msg_byte_size)?;
+        let mut group = self.check_msg_size_against_group(group, priority, msg_byte_size)?;
+
+        let mut bytes_removed = 0;
+        let mut groups_removed = vec![];
+        let mut msgs_removed = vec![];
 
         // prune group if needed
-        self.prune_group(&mut group, msg_byte_size, PruneBy::Group)?;
+        let (bytes_removed_from_group, mut msgs_removed_from_group) = self.prune_group(&mut group, msg_byte_size, PruneBy::Group)?;
+
+        bytes_removed += bytes_removed_from_group;
+        msgs_removed.append(&mut msgs_removed_from_group);
 
         // prune store
-        self.prune_store(Some(&mut group), packet.priority, msg_byte_size)?;
+        let (bytes_removed_from_groups, mut groups_removed_from_store, mut msgs_removed_from_groups) = self.prune_store(Some(&mut group), priority, msg_byte_size)?;
+        bytes_removed += bytes_removed_from_groups;
+        msgs_removed.append(&mut msgs_removed_from_groups);
+        groups_removed.append(&mut groups_removed_from_store);
 
         // insert msg
         let uuid = self.uuid_manager.next();                                 // get uuid
-        self.insert_msg(group, uuid, packet.priority, msg_byte_size);
+        self.insert_msg(group, uuid, priority, msg_byte_size);
         
-        let package = Package {
-            uuid,
-            priority: packet.priority,
-            msg: packet.msg.clone(),
-            byte_size: msg_byte_size
-        };
-        match self.db.add(&package) {
-            Ok(_) => Ok(()),
-            Err(db_error) => Err(Error::DbError(db_error))
-        }?;
         self.inc_msgs_inserted_count();
 
-        Ok(uuid)
+        Ok(AddResult{ uuid, bytes_removed, msgs_removed, groups_removed })
         
     }
     
@@ -527,10 +469,6 @@ impl<Db: Keeper> Store<Db> {
             self.groups_map.remove(&priority);
         }
         self.id_to_group_map.remove(&uuid);
-        match self.db.del(&uuid) {
-            Ok(_) => Ok(()),
-            Err(db_error) => Err(Error::DbError(db_error))
-        }?;
         self.inc_msgs_deleted();
         Ok(())
     }
@@ -559,10 +497,6 @@ impl<Db: Keeper> Store<Db> {
     pub fn del_group(&mut self, priority: &u32) -> Result<(), Error> {
         if let Some(group) = self.groups_map.remove(priority) {
             for (uuid, _msg_byte_size) in group.msgs_map.iter() {
-                match self.db.del(uuid) {
-                    Ok(_) => Ok(()),
-                    Err(error) => Err(Error::DbError(error))
-                }?;
                 self.id_to_group_map.remove(uuid);
                 self.inc_msgs_deleted();
             }
@@ -598,35 +532,36 @@ impl<Db: Keeper> Store<Db> {
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&mut self, options: GetOptions) -> Result<Option<StoredPacket>, Error> {
+    pub fn get(&mut self, uuid: Option<Uuid>, priority: Option<u32>, reverse: bool) -> Result<Option<Uuid>, Error> {
 
-        if let Some(uuid) = options.uuid {
+        if let Some(uuid) = uuid {
 
-            self.get_stored_packet(uuid)
+            match self.id_to_group_map.contains_key(&uuid) {
+                true => Ok(Some(uuid)),
+                false => Ok(None)
+            }
 
-        } else if let Some(priority) = options.priority {
+        } else if let Some(priority) = priority {
 
             let group = match self.groups_map.get(&priority) {
                 Some(group) => group,
                 None => { return Ok(None) }
             };
 
-            let uuid_option = match !options.reverse {
+            let uuid_option = match !reverse {
                 true => group.msgs_map.keys().next(),
                 false => group.msgs_map.keys().rev().next()
             };
 
-            let uuid = match uuid_option {
-                Some(uuid) => uuid.clone(),
+            match uuid_option {
+                Some(uuid) => Ok(Some(uuid.clone())),
                 None => { return Ok(None) }
-            };
-
-            self.get_stored_packet(uuid)
+            }
             
 
         } else {
 
-            let next_group_option = match !options.reverse {
+            let next_group_option = match !reverse {
                 true => self.groups_map.values().rev().next(),
                 false => self.groups_map.values().next()
             };
@@ -636,17 +571,15 @@ impl<Db: Keeper> Store<Db> {
                 None => { return Ok(None) }
             };
 
-            let next_uuid_option = match !options.reverse {
+            let next_uuid_option = match !reverse {
                 true => group.msgs_map.keys().next(),
                 false => group.msgs_map.keys().rev().next()
             };
 
-            let uuid = match next_uuid_option {
-                Some(uuid) => uuid.clone(),
-                None => { return Err(Error::SyncError) }
-            };
-
-            self.get_stored_packet(uuid)
+            match next_uuid_option {
+                Some(uuid) => Ok(Some(uuid.clone())),
+                None => Err(Error::SyncError)
+            }
 
         }
     }
@@ -742,14 +675,18 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(), Error> {
+    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(u32, Vec<Uuid>), Error> {
+        let mut bytes_removed = 0;
+        let mut msgs_removed = vec![];
         self.group_defaults.insert(priority, defaults.clone());
         if let Some(mut group) = self.groups_map.remove(&priority) {
             group.update_from_config(defaults.clone());
-            self.prune_group(&mut group, 0, PruneBy::Group)?;
+            let (bytes_removed_from_group, mut msgs_removed_from_group) = self.prune_group(&mut group, 0, PruneBy::Group)?;
+            bytes_removed += bytes_removed_from_group;
+            msgs_removed.append(&mut msgs_removed_from_group);
             self.groups_map.insert(priority, group);
         }
-        Ok(())
+        Ok((bytes_removed, msgs_removed))
     }
 
     /// Removes the defaults for a priority group
@@ -814,7 +751,7 @@ impl<Db: Keeper> Store<Db> {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(), Error> {
+    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u32, Vec<u32>, Vec<Uuid>), Error> {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, u32::MAX, 0)
     }
