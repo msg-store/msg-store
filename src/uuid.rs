@@ -6,7 +6,6 @@ use std::time::{
     UNIX_EPOCH
 };
 
-#[cfg_attr(feature = "level", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Uuid {
     pub timestamp: u128,
