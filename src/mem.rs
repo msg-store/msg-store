@@ -247,6 +247,94 @@ mod tests {
 
     }
 
+    mod get_n {
+        use crate::store::Store;
+
+        #[test]
+        fn should_return_n_msg_uuids() {
+            let mut store = Store::new();
+            let uuids = vec![
+                store.add(1, 10).unwrap().uuid, // 0 => 2
+                store.add(2, 10).unwrap().uuid, // 1 => 1
+                store.add(1, 10).unwrap().uuid, // 2 => 3
+                store.add(1, 10).unwrap().uuid, // 3 => 4
+                store.add(1, 10).unwrap().uuid, // 4 => 5
+                store.add(4, 10).unwrap().uuid, // 5 => 0
+                store.add(1, 10).unwrap().uuid, // 6 => 6
+                store.add(1, 10).unwrap().uuid, // 7 => 7
+                store.add(1, 10).unwrap().uuid, // 8 => 8
+                store.add(1, 10).unwrap().uuid  // 9 => 9
+            ];            
+            let rereived_uuids = store.get_n(10, None, None, false);
+            assert_eq!(uuids.get(0).unwrap(), rereived_uuids.get(2).unwrap());
+            assert_eq!(uuids.get(1).unwrap(), rereived_uuids.get(1).unwrap());
+            assert_eq!(uuids.get(2).unwrap(), rereived_uuids.get(3).unwrap());
+            assert_eq!(uuids.get(3).unwrap(), rereived_uuids.get(4).unwrap());
+            assert_eq!(uuids.get(4).unwrap(), rereived_uuids.get(5).unwrap());
+            assert_eq!(uuids.get(5).unwrap(), rereived_uuids.get(0).unwrap());
+            assert_eq!(uuids.get(6).unwrap(), rereived_uuids.get(6).unwrap());
+            assert_eq!(uuids.get(7).unwrap(), rereived_uuids.get(7).unwrap());
+            assert_eq!(uuids.get(8).unwrap(), rereived_uuids.get(8).unwrap());
+            assert_eq!(uuids.get(9).unwrap(), rereived_uuids.get(9).unwrap());
+        }
+
+        #[test]
+        fn should_return_9_messages_lt_4() {
+            let mut store = Store::new();
+            let uuids = vec![
+                store.add(1, 10).unwrap().uuid, // 0 => 1
+                store.add(2, 10).unwrap().uuid, // 1 => 0
+                store.add(1, 10).unwrap().uuid, // 2 => 2
+                store.add(1, 10).unwrap().uuid, // 3 => 3
+                store.add(1, 10).unwrap().uuid, // 4 => 4
+                store.add(4, 10).unwrap().uuid, // 5 => N/A
+                store.add(1, 10).unwrap().uuid, // 6 => 5
+                store.add(1, 10).unwrap().uuid, // 7 => 6
+                store.add(1, 10).unwrap().uuid, // 8 => 7
+                store.add(1, 10).unwrap().uuid  // 9 => 8
+            ];            
+            let rereived_uuids = store.get_n(10, Some(2), None, false);
+            assert_eq!(uuids.get(0).unwrap(), rereived_uuids.get(1).unwrap());
+            assert_eq!(uuids.get(1).unwrap(), rereived_uuids.get(0).unwrap());
+            assert_eq!(uuids.get(2).unwrap(), rereived_uuids.get(2).unwrap());
+            assert_eq!(uuids.get(3).unwrap(), rereived_uuids.get(3).unwrap());
+            assert_eq!(uuids.get(4).unwrap(), rereived_uuids.get(4).unwrap());
+            assert_eq!(uuids.get(6).unwrap(), rereived_uuids.get(5).unwrap());
+            assert_eq!(uuids.get(7).unwrap(), rereived_uuids.get(6).unwrap());
+            assert_eq!(uuids.get(8).unwrap(), rereived_uuids.get(7).unwrap());
+            assert_eq!(uuids.get(9).unwrap(), rereived_uuids.get(8).unwrap());
+            assert_eq!(9, rereived_uuids.len());
+        }
+
+        #[test]
+        fn should_return_8_messages_lt_the_pri_2_message() {
+            let mut store = Store::new();
+            let uuids = vec![
+                store.add(1, 10).unwrap().uuid, // 0 => 0
+                store.add(2, 10).unwrap().uuid, // 1 => N/A
+                store.add(1, 10).unwrap().uuid, // 2 => 1
+                store.add(1, 10).unwrap().uuid, // 3 => 2
+                store.add(1, 10).unwrap().uuid, // 4 => 3
+                store.add(4, 10).unwrap().uuid, // 5 => N/A
+                store.add(1, 10).unwrap().uuid, // 6 => 4
+                store.add(1, 10).unwrap().uuid, // 7 => 5
+                store.add(1, 10).unwrap().uuid, // 8 => 6
+                store.add(1, 10).unwrap().uuid  // 9 => 7
+            ];            
+            let rereived_uuids = store.get_n(10, None, Some(*uuids.get(1).unwrap()), false);
+            assert_eq!(uuids.get(0).unwrap(), rereived_uuids.get(0).unwrap());
+            assert_eq!(uuids.get(2).unwrap(), rereived_uuids.get(1).unwrap());
+            assert_eq!(uuids.get(3).unwrap(), rereived_uuids.get(2).unwrap());
+            assert_eq!(uuids.get(4).unwrap(), rereived_uuids.get(3).unwrap());
+            assert_eq!(uuids.get(6).unwrap(), rereived_uuids.get(4).unwrap());
+            assert_eq!(uuids.get(7).unwrap(), rereived_uuids.get(5).unwrap());
+            assert_eq!(uuids.get(8).unwrap(), rereived_uuids.get(6).unwrap());
+            assert_eq!(uuids.get(9).unwrap(), rereived_uuids.get(7).unwrap());
+            assert_eq!(8, rereived_uuids.len());
+        }
+
+    }
+
     mod get_metadata {
         use crate::store::Store;
 
