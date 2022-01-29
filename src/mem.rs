@@ -491,6 +491,14 @@ mod tests {
             assert_eq!(3, group.byte_size);
         }
 
+        #[test]
+        fn should_remove_empty_group_after_update() {
+            let mut store = Store::new();
+            store.add(1, "foo".len() as u32).unwrap();
+            store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(2) }).unwrap();
+            assert_eq!(0, store.groups_map.len());
+        }
+
     }
 
     mod uuid {

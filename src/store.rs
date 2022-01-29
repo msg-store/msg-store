@@ -220,14 +220,16 @@ impl Store {
                             break 'groups;
                         }
                         let mut removed_msgs = RemovedMsgs::new(*priority);
+                        let mut removed_msg_count = 0;
                         'messages: for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
                             if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
                                 break 'messages;
                             }
                             bytes_removed += group_msg_byte_size;
+                            removed_msg_count += 1;
                             removed_msgs.add(uuid.clone());
                         }
-                        if group.byte_size == 0 {
+                        if group.msgs_map.len() == removed_msg_count {
                             groups_removed.push(*priority);
                         }
                         all_removed_msgs.push(removed_msgs);
