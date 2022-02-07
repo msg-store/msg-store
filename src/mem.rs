@@ -185,7 +185,7 @@ mod tests {
         fn should_return_msg() {
             let mut store = Store::new();
             let uuid = store.add(1, "first message".len() as u32).unwrap().uuid;
-            let stored_packet = store.get(Some(uuid), None, false).unwrap().expect("Msg not found");
+            let stored_packet = store.get(Some(uuid.clone()), None, false).unwrap().expect("Msg not found");
             assert_eq!(uuid, stored_packet);
         }
 
@@ -321,7 +321,7 @@ mod tests {
                 store.add(1, 10).unwrap().uuid, // 8 => 6
                 store.add(1, 10).unwrap().uuid  // 9 => 7
             ];            
-            let rereived_uuids = store.get_n(10, None, Some(*uuids.get(1).unwrap()), false);
+            let rereived_uuids = store.get_n(10, None, Some(uuids.get(1).unwrap().clone()), false);
             assert_eq!(uuids.get(0).unwrap(), rereived_uuids.get(0).unwrap());
             assert_eq!(uuids.get(2).unwrap(), rereived_uuids.get(1).unwrap());
             assert_eq!(uuids.get(3).unwrap(), rereived_uuids.get(2).unwrap());
@@ -372,7 +372,7 @@ mod tests {
             let group = store.groups_map.get(&1).expect("Could get group ref");
             assert_eq!(6, store.byte_size);
             assert_eq!(6, group.byte_size);
-            store.del(&uuid).unwrap();
+            store.del(uuid).unwrap();
             let group = store.groups_map.get(&1).expect("Could get group ref");
             assert_eq!(3, store.byte_size);
             assert_eq!(3, group.byte_size);
@@ -383,7 +383,7 @@ mod tests {
             let mut store = Store::new();
             let uuid = store.add(1, "foo".len() as u32).unwrap().uuid;
             assert!(store.groups_map.get(&1).is_some());
-            store.del(&uuid).unwrap();
+            store.del(uuid).unwrap();
             assert!(store.groups_map.get(&1).is_none())
         }
 
@@ -503,10 +503,12 @@ mod tests {
 
     mod uuid {
         use crate::Uuid;
+        use std::sync::Arc;
 
         #[test]
         fn should_convert_a_str_to_uuid() {
-            assert_eq!(Uuid{ priority: 1, timestamp: 1636523479865480266, sequence: 1 }, Uuid::from_string("1-1636523479865480266-1").unwrap())
+            let left = Arc::new(Uuid{ priority: 1, timestamp: 1636523479865480266, sequence: 1 });
+            assert_eq!(left, Uuid::from_string("1-1636523479865480266-1").unwrap())
         }
     }
 

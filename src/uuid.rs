@@ -1,6 +1,7 @@
 
 use std::{
     cmp::Ordering,
+    sync::Arc,
     time::{
         SystemTime,
         UNIX_EPOCH
@@ -17,7 +18,7 @@ impl Uuid {
     pub fn to_string(&self) -> String {
         format!("{}-{}-{}", self.priority, self.timestamp, self.sequence)
     }
-    pub fn from_string(id: &str) -> Result<Uuid, String> {
+    pub fn from_string(id: &str) -> Result<Arc<Uuid>, String> {
         let split_str = id.split("-").collect::<Vec<&str>>();
         let priority: u32 = match split_str[0].parse() {
             Ok(priority) => priority,
@@ -37,11 +38,11 @@ impl Uuid {
                 return Err(error.to_string())
             }
         };
-        Ok(Uuid {
+        Ok(Arc::new(Uuid {
             priority,
             timestamp,
             sequence
-        })
+        }))
     }
 }
 
@@ -104,7 +105,7 @@ impl UuidManager {
             sequence: 1
         }
     }
-    pub fn next(&mut self, priority: u32) -> Uuid {
+    pub fn next(&mut self, priority: u32) -> Arc<Uuid> {
         let nano = SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos();
         if nano != self.timestamp {
             self.timestamp = nano;
@@ -112,10 +113,10 @@ impl UuidManager {
         } else {
             self.sequence += 1;
         }
-        Uuid {
+        Arc::new(Uuid {
             priority,
             timestamp: self.timestamp,
             sequence: self.sequence            
-        }
+        })
     }
 }
