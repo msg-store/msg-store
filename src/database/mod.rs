@@ -1,7 +1,7 @@
 pub mod in_memory;
 pub mod leveldb;
 
-pub use bytes::Bytes;
+use bytes::Bytes;
 use super::core::uuid::Uuid;
 use std::sync::Arc;
 
