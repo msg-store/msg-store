@@ -151,7 +151,7 @@ mod tests {
         dir_setup(&tmp_dir);
 
         // create a fake uuid and message
-        let uuid = Uuid::from_string("1-0-1").unwrap();
+        let uuid = Uuid::from_string("1-0-1-0").unwrap();
         let inner_msg = b"my message";
         let msg = Bytes::copy_from_slice(inner_msg);
         let msg_byte_size = inner_msg.len() as u32;

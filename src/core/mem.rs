@@ -507,8 +507,8 @@ mod tests {
 
         #[test]
         fn should_convert_a_str_to_uuid() {
-            let left = Arc::new(Uuid{ priority: 1, timestamp: 1636523479865480266, sequence: 1 });
-            assert_eq!(left, Uuid::from_string("1-1636523479865480266-1").unwrap())
+            let left = Arc::new(Uuid{ priority: 1, timestamp: 1636523479865480266, sequence: 1, node_id: 0 });
+            assert_eq!(left, Uuid::from_string("1-1636523479865480266-1-0").unwrap())
         }
     }
 

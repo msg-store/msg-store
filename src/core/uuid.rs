@@ -1,22 +1,20 @@
-
-use std::{
-    cmp::Ordering,
-    sync::Arc,
-    time::{
-        SystemTime,
-        UNIX_EPOCH
-    }
+use std::cmp::Ordering;
+use std::sync::Arc;
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Uuid {
     pub priority: u32,
     pub timestamp: u128,
-    pub sequence: u32
+    pub sequence: u32,
+    pub node_id: u16
 }
 impl Uuid {
     pub fn to_string(&self) -> String {
-        format!("{}-{}-{}", self.priority, self.timestamp, self.sequence)
+        format!("{}-{}-{}-{}", self.priority, self.timestamp, self.sequence, self.node_id)
     }
     pub fn from_string(id: &str) -> Result<Arc<Uuid>, String> {
         let split_str = id.split("-").collect::<Vec<&str>>();
@@ -38,10 +36,17 @@ impl Uuid {
                 return Err(error.to_string())
             }
         };
+        let node_id: u16 = match split_str[3].parse() {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                return Err(error.to_string())
+            }
+        };
         Ok(Arc::new(Uuid {
             priority,
             timestamp,
-            sequence
+            sequence,
+            node_id
         }))
     }
 }
@@ -96,14 +101,25 @@ impl Ord for Uuid {
 
 pub struct UuidManager {
     pub timestamp: u128,
-    pub sequence: u32
+    pub sequence: u32,
+    pub node_id: u16
 }
 impl UuidManager {
     pub fn default() -> UuidManager {
         UuidManager {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos(),
-            sequence: 1
+            sequence: 1,
+            node_id: 0
         }
+    }
+    pub fn new(node_id: Option<u16>) -> UuidManager {
+        let node_id = match node_id {
+            Some(node_id) => node_id,
+            None => 0
+        };
+        let mut manager = UuidManager::default();
+        manager.node_id = node_id;
+        manager
     }
     pub fn next(&mut self, priority: u32) -> Arc<Uuid> {
         let nano = SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos();
@@ -116,7 +132,8 @@ impl UuidManager {
         Arc::new(Uuid {
             priority,
             timestamp: self.timestamp,
-            sequence: self.sequence            
+            sequence: self.sequence,
+            node_id: self.node_id           
         })
     }
 }
