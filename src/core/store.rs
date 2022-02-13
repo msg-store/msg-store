@@ -1,15 +1,7 @@
-use crate::{
-    errors::Error,
-    uuid::{
-        UuidManager,
-        Uuid
-    }
-};
-
-use std::{
-    collections::BTreeMap,
-    sync::Arc
-};
+use crate::core::errors::Error;
+use crate::core::uuid::{UuidManager,Uuid};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 
 enum PruneBy {
     Group,

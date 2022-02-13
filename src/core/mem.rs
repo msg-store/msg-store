@@ -1,4 +1,4 @@
-use crate::{
+use crate::core::{
     store::Store,
     uuid::Uuid
 };
@@ -42,7 +42,7 @@ pub fn open() -> (Store, MemDb) {
 mod tests {
 
     mod add {
-        use crate::store::{ Store, GroupDefaults };
+        use crate::core::store::{ Store, GroupDefaults };
 
         #[test]
         fn should_increase_store_byte_size() {
@@ -179,7 +179,7 @@ mod tests {
     }
 
     mod get {
-        use crate::store::Store;
+        use crate::core::store::Store;
 
         #[test]
         fn should_return_msg() {
@@ -248,7 +248,7 @@ mod tests {
     }
 
     mod get_n {
-        use crate::store::Store;
+        use crate::core::store::Store;
 
         #[test]
         fn should_return_n_msg_uuids() {
@@ -336,7 +336,7 @@ mod tests {
     }
 
     mod get_metadata {
-        use crate::store::Store;
+        use crate::core::store::Store;
 
         #[test]
         fn should_return_2_message_data_points() {
@@ -362,7 +362,7 @@ mod tests {
     }
 
     mod del {
-        use crate::store::Store;
+        use crate::core::store::Store;
 
         #[test]
         fn should_decrease_byte_size() {
@@ -390,7 +390,7 @@ mod tests {
     }
 
     mod del_group {
-        use crate::store::Store;
+        use crate::core::store::Store;
 
         #[test]
         fn should_decrease_byte_size() {
@@ -420,7 +420,7 @@ mod tests {
     }
 
     mod update_group_defaults {
-        use crate::store::{ Store, GroupDefaults };
+        use crate::core::store::{ Store, GroupDefaults };
 
         #[test]
         fn should_update_store_config() {
@@ -453,7 +453,7 @@ mod tests {
     }
 
     mod delete_group_defaults {
-        use crate::store::{Store, GroupDefaults};
+        use crate::core::store::{Store, GroupDefaults};
 
         #[test]
         #[test]
@@ -471,7 +471,7 @@ mod tests {
     }
 
     mod update_store_defaults {
-        use crate::store::{ Store, StoreDefaults };
+        use crate::core::store::{ Store, StoreDefaults };
 
         #[test]
         fn should_update_store_config() {
@@ -502,7 +502,7 @@ mod tests {
     }
 
     mod uuid {
-        use crate::Uuid;
+        use crate::core::uuid::Uuid;
         use std::sync::Arc;
 
         #[test]

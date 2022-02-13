@@ -1,11 +1,3 @@
-
-pub mod errors;
-pub mod mem;
-pub mod store;
-pub mod uuid;
-
-pub use crate::{
-    store::Store,
-    mem::MemDb,
-    uuid::Uuid
-};
+pub mod api;
+pub mod core;
+pub mod database;
