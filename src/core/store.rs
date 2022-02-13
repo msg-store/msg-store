@@ -1,4 +1,4 @@
-use crate::{
+use crate::core::{
     errors::Error,
     uuid::{
         UuidManager,
