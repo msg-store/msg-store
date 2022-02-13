@@ -1,7 +1,7 @@
 use bincode::{serialize, deserialize};
 use bytes::Bytes;
 use crate::core::uuid::Uuid;
-use crate::database::Db;
+pub use crate::database::Db;
 use db_key::Key;
 use leveldb::database::Database;
 use leveldb::iterator::Iterable;
