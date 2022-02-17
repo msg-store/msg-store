@@ -95,12 +95,12 @@ pub struct Store {
 
 impl Store {
 
-    pub fn new() -> Store {
+    pub fn new(node_id: Option<u16>) -> Store {
         Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
-            uuid_manager: UuidManager::default(),
+            uuid_manager: UuidManager::new(node_id),
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new()
         }
