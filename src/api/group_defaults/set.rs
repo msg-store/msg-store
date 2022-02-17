@@ -1,45 +1,49 @@
-use crate::api::configuration::{update_config, GroupConfig, StoreConfig};
+use crate::api::config::{update_config, GroupConfig, StoreConfig};
 use crate::core::store::{GroupDefaults, Store};
-use crate::api::{ApiErrorTy, ApiError, NoErr, lock, Database};
+use crate::api::{lock, Database};
+use crate::api::error_codes;
 use crate::api::file_storage::{rm_from_file_storage, FileStorage};
 use crate::api::stats::Stats;
-use crate::api_err;
 use std::borrow::BorrowMut;
-use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-pub fn try_set<E: Error>(
+pub fn handle(
     store_mutex: &Mutex<Store>,
-    database_mutex: &Mutex<Database<E>>,
+    database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
     store_configuration_mutex: &Mutex<StoreConfig>,
     store_configuration_path_option: &Option<PathBuf>,
     priority: u32,
     max_byte_size_option: Option<u32>
-) -> Result<(), ApiError<E, NoErr>> {
+) -> Result<(), &'static str> {
     let defaults = GroupDefaults {
         max_byte_size: max_byte_size_option,
     };
     let (pruned_count, msgs_removed) = {
         let mut store = lock(store_mutex)?;
         match store.update_group_defaults(priority, &defaults) {
-            Ok((_bytes_removed, msgs_removed)) => Ok((msgs_removed.len() as u32, msgs_removed)),
-            Err(error) => Err(api_err!(ApiErrorTy::StoreError(error)))
+            Ok((_bytes_removed, msgs_removed)) => (msgs_removed.len() as u32, msgs_removed),
+            Err(error) => {
+                error_codes::log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
+                return Err(error_codes::STORE_ERROR)
+            }
         }
-    }?;
+    };
     for uuid in msgs_removed.into_iter() {
         {
             let mut db = lock(database_mutex)?;
             if let Err(error) = db.del(uuid.clone()) {
-                return Err(api_err!(ApiErrorTy::DbError(error)))
+                error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
+                return Err(error_codes::DATABASE_ERROR)
             }
         }
         if let Some(file_storage_mutex) = file_storage_option {
             let mut file_storage = lock(file_storage_mutex)?;
-            if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                return Err(api_err!(ApiErrorTy::FileStorageError(error)))
+            if let Err(error_code) = rm_from_file_storage(&mut file_storage, &uuid) {
+                error_codes::log_err(error_code, file!(), line!(), "");
+                return Err(error_code)
             }
         }
     }
@@ -83,7 +87,8 @@ pub fn try_set<E: Error>(
             config.groups = Some(vec![mk_group_config()]);
         }
         if let Err(error) = update_config(&config, store_configuration_path_option) {
-            return Err(api_err!(ApiErrorTy::ConfigurationError(error)))
+            error_codes::log_err(error_codes::COULD_NOT_UPDATE_CONFIGURATION, file!(), line!(), error);
+            return Err(error_codes::COULD_NOT_UPDATE_CONFIGURATION)
         }
     }    
     Ok(())

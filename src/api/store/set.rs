@@ -1,20 +1,20 @@
 use crate::core::store::{Store, StoreDefaults};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use crate::api::{ApiError, ApiErrorTy, NoErr, lock};
-use crate::api::configuration::{StoreConfig, update_config};
+use crate::api::lock;
+use crate::api::config::{StoreConfig, update_config};
+use crate::api::error_codes::{self, log_err};
 use crate::api::file_storage::{FileStorage, rm_from_file_storage};
 use crate::api::stats::Stats;
-use crate::api_err;
 
-pub fn try_set(
+pub fn handle(
     store_mutex: &Mutex<Store>,
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
     store_config_mutex: &Mutex<StoreConfig>,
     store_config_path_option: &Option<PathBuf>,
     max_byte_size: Option<u32>
-) -> Result<(), ApiError<NoErr, NoErr>> {    
+) -> Result<(), &'static str> {    
     let (prune_count, pruned_uuids) = {
         let mut store = lock(store_mutex)?;        
         store.max_byte_size = max_byte_size;
@@ -22,15 +22,19 @@ pub fn try_set(
             max_byte_size,
         };
         match store.update_store_defaults(&defaults) {
-            Ok((_bytes_removed, _groups_removed, msgs_removed)) => Ok((msgs_removed.len() as u32, msgs_removed)),
-            Err(error) => Err(api_err!(ApiErrorTy::StoreError(error)))
+            Ok((_bytes_removed, _groups_removed, msgs_removed)) => (msgs_removed.len() as u32, msgs_removed),
+            Err(error) => {
+                log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
+                return Err(error_codes::STORE_ERROR)
+            }
         }
-    }?;
+    };
     if let Some(file_storage_mutex) = file_storage_option {
         let mut file_storage = lock(&file_storage_mutex)?;
         for uuid in pruned_uuids {
-            if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                return Err(api_err!(ApiErrorTy::FileStorageError(error)))
+            if let Err(error_code) = rm_from_file_storage(&mut file_storage, &uuid) {
+                log_err(error_code, file!(), line!(), "");
+                return Err(error_code)
             }
         }
     }
@@ -42,7 +46,8 @@ pub fn try_set(
         let mut config = lock(store_config_mutex)?;
         config.max_byte_size = max_byte_size;
         if let Err(error) = update_config(&mut config, store_config_path_option) {
-            return Err(api_err!(ApiErrorTy::ConfigurationError(error)));
+            log_err(error_codes::COULD_NOT_UPDATE_CONFIGURATION, file!(), line!(), error.to_string());
+            return Err(error_codes::COULD_NOT_UPDATE_CONFIGURATION)
         }
     }
     Ok(())

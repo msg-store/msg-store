@@ -1,6 +1,6 @@
 use bincode::{serialize, deserialize};
 use bytes::Bytes;
-use crate::core::uuid::{Uuid, UuidError};
+use crate::core::uuid::Uuid;
 pub use crate::database::Db;
 use db_key::Key;
 use leveldb::database::Database;
@@ -12,60 +12,8 @@ use leveldb::options::{
     WriteOptions
 };
 use serde::{Serialize, Deserialize};
-use std::error::Error;
-use std::fmt::Display;
 use std::path::Path;
 use std::sync::Arc;
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum LvlDbErrorTy {
-    CouldNotInsertMsg,
-    CouldNotInsertData,
-    CouldNotGetMsg,
-    CouldNotGetData,
-    CouldNotRemoveMsg,
-    CouldNotRemoveData,
-    CouldNotFetchData,
-    CouldNotOpenDatabase,
-    MsgNotFound,
-    CouldNotParseMsg,
-    CouldNotParseData,
-    CouldNotParseUuid(UuidError),
-    CouldNotGetString
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct LvlDbError {
-    pub error_ty: LvlDbErrorTy,
-    pub file: &'static str,
-    pub line: u32,
-    pub msg: Option<String>
-}
-impl LvlDbError {
-    pub fn new(error_ty: LvlDbErrorTy, file: &'static str, line: u32, msg: Option<String>) -> LvlDbError {
-        LvlDbError {
-            error_ty,
-            file,
-            line,
-            msg
-        }
-    }
-}
-impl Display for LvlDbError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#}", self)
-    }
-}
-impl Error for LvlDbError { }
-
-macro_rules! db_error {
-    ($err:expr) => {
-        LvlDbError::new($err, file!(), line!(), None)
-    };
-    ($err_ty:expr, $error:expr) => {
-        LvlDbError::new($err_ty, file!(), line!(), Some($error.to_string()))
-    };
-}
 
 #[derive(Deserialize, Serialize)]
 pub struct Id(Vec<u8>);
@@ -87,7 +35,7 @@ pub struct Leveldb {
 }
 
 impl Leveldb {
-    pub fn new(dir: &Path) -> Result<Leveldb, LvlDbError> {
+    pub fn new(dir: &Path) -> Result<Leveldb, String> {
 
         let mut msgs_path = dir.to_path_buf();
         msgs_path.push("msgs");
@@ -104,13 +52,17 @@ impl Leveldb {
         msg_data_options.create_if_missing = true;
 
         let msgs = match Database::open(msgs_path, msgs_options) {
-            Ok(msgs) => Ok(msgs),
-            Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotOpenDatabase, error))
-        }?;
+            Ok(msgs) => msgs,
+            Err(error) => {
+                return Err(format!("PLUGIN_LEVEL_DB_ERROR_CODE: 034d85df-3e0e-4522-953c-af31cb6a7550. Could not open msgs database: {}", error.to_string()));
+            }
+        };
         let data = match Database::open(Path::new(msg_data_path), msg_data_options){
-            Ok(data) => Ok(data),
-            Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotOpenDatabase, error))
-        }?;
+            Ok(data) => data,
+            Err(error) => {
+                return Err(format!("PLUGIN_LEVEL_DB_ERROR_CODE: ef9cb8ae-8775-4cfc-8725-074e762287aa. Could not open msgs database: {}", error.to_string()));
+            } 
+        };
         
         Ok(Leveldb {
             msgs,
@@ -119,61 +71,53 @@ impl Leveldb {
     }
 }
 
-impl Db<LvlDbError> for Leveldb {
-    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), LvlDbError> {
+impl Db for Leveldb {
+    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), String> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        if let Err(error) = self.data.put(
-            WriteOptions::new(), Id(uuid_bytes.clone()), 
-            format!("{}", msg_byte_size).as_bytes()) {
-            return Err(db_error!(LvlDbErrorTy::CouldNotInsertData, error));
-        };
-        if let Err(error) = self.msgs.put(WriteOptions::new(), Id(uuid_bytes), &msg) {
-            return Err(db_error!(LvlDbErrorTy::CouldNotInsertMsg, error));
-        }        
+        self.data.put(WriteOptions::new(), Id(uuid_bytes.clone()), format!("{}", msg_byte_size).as_bytes()).expect("Could not insert metadata");
+        self.msgs.put(WriteOptions::new(), Id(uuid_bytes), &msg).expect("Could not insert msg");
         Ok(())
     }
-    fn get(&mut self, uuid: Arc<Uuid>) -> Result<Bytes, LvlDbError> {
+    fn get(&mut self, uuid: Arc<Uuid>) -> Result<Bytes, String> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        let msg_result = self.msgs.get(ReadOptions::new(), Id(uuid_bytes));
-        let msg_option = match msg_result {
-            Ok(msg_option) => Ok(msg_option),
-            Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotGetMsg, error))
-        }?;
-        match msg_option {
+        match self.msgs.get(ReadOptions::new(), Id(uuid_bytes)).expect("Could not get msg") {
             Some(msg) => Ok(Bytes::copy_from_slice(&msg)),
-            None => Err(db_error!(LvlDbErrorTy::MsgNotFound))
+            None => Err("Message not found".to_string())
         }
     }
-    fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), LvlDbError> {
+    fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), String> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        if let Err(error) = self.msgs.delete(WriteOptions::new(), Id(uuid_bytes.clone())) {
-            return Err(db_error!(LvlDbErrorTy::CouldNotRemoveMsg, error));
-        }
-        if let Err(error) = self.data.delete(WriteOptions::new(), Id(uuid_bytes)) {
-            return Err(db_error!(LvlDbErrorTy::CouldNotRemoveData, error));
-        }
+        self.msgs.delete(WriteOptions::new(), Id(uuid_bytes)).expect("Could not delete msg");
         Ok(())
     }
-    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, LvlDbError> {
+    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, String> {
         self.data.iter(ReadOptions::new()).map(|(id, data)| {
             let data = match String::from_utf8(data) {
-                Ok(data) => Ok(data),
-                Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotParseData, error))
-            }?;
+                Ok(data) => data,
+                Err(_error) => {
+                    return Err("Could not convert bytes into String".to_string());
+                }
+            };
             let data = match data.parse::<u32>() {
-                Ok(data) => Ok(data),
-                Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotParseData, error))
-            }?;
+                Ok(data) => data,
+                Err(_error) => {
+                    return Err("Could not parse u32".to_string());
+                }
+            };
             let uuid = match String::from_utf8(id.0) {
-                Ok(uuid) => Ok(uuid),
-                Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotGetString, error))
-            }?;
+                Ok(uuid) => uuid,
+                Err(_error) => {
+                    return Err("Could not convert bytes into Uuid String".to_string())
+                }
+            };
             let uuid = match Uuid::from_string(&uuid) {
-                Ok(uuid) => Ok(uuid),
-                Err(error) => Err(db_error!(LvlDbErrorTy::CouldNotParseUuid(error)))
-            }?;
+                Ok(uuid) => uuid,
+                Err(error) => {
+                    return Err(error)
+                }
+            };
             Ok((uuid, data))
-        }).collect::<Result<Vec<(Arc<Uuid>, u32)>, LvlDbError>>()
+        }).collect::<Result<Vec<(Arc<Uuid>, u32)>, String>>()
     }
 }
 

@@ -1,18 +1,18 @@
-use crate::api::{Database, lock, ApiError, ApiErrorTy, MsgError};
+use crate::api::{Database, lock};
+use crate::api::error_codes::{ self, log_err };
 use crate::api::file_storage::{
     rm_from_file_storage,
     add_to_file_storage,
     FileStorage
 };
 use crate::api::stats::Stats;
-use crate::core::store::{Store, StoreErrorTy};
+use crate::core::store::Store;
+use crate::core::errors::Error;
 use crate::core::uuid::Uuid;
-use crate::api_err;
 use bytes::{Bytes, BytesMut};
 use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::marker::Unpin;
 use std::sync::{Arc,Mutex};
 
@@ -22,14 +22,14 @@ pub struct Body {
     msg: String,
 }
 
-pub trait Chunky<E: Error>: Stream<Item=Result<Bytes, E>> + Unpin { }
+pub trait Chunky: Stream<Item=Result<Bytes, &'static str>> + Unpin { }
 
-pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
+pub async fn handle<T: Chunky>(
     store: &Mutex<Store>,
     file_storage: &Option<Mutex<FileStorage>>,
     stats: &Mutex<Stats>,
-    database: &Mutex<Database<E>>,
-    payload: &mut T) -> Result<Arc<Uuid>, ApiError<E, P>> {
+    database: &Mutex<Database>,
+    payload: &mut T) -> Result<Arc<Uuid>, &'static str> {
 
         let mut metadata_string = String::new();
         let mut msg_chunk = BytesMut::new();
@@ -39,11 +39,17 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
         while let Some(chunk) = payload.next().await {
             let chunk = match chunk {
                 Ok(chunk) => Ok(chunk),
-                Err(error) => Err(api_err!(ApiErrorTy::CouldNotParseChunk, error))
+                Err(error) => {
+                    log_err(error, file!(), line!(), "");
+                    Err(error)
+                }
             }?;
             let mut chunk_string = match String::from_utf8(chunk.to_vec()) {
                 Ok(chunk_string) => Ok(chunk_string),
-                Err(error) => Err(api_err!(ApiErrorTy::CouldNotParseChunk, error))
+                Err(error) => {
+                    log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
+                    Err(error_codes::COULD_NOT_PARSE_CHUNK)
+                }
             }?;
             chunk_string = chunk_string.trim_start().to_string();
             // debug!("recieved chunk: {}", chunk_string);
@@ -51,7 +57,7 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
             if metadata_string.contains("?") {
                 // debug!("msg start found!");
                 if metadata_string.len() == 0 {
-                    return Err(api_err!(ApiErrorTy::MsgError(MsgError::MissingHeaders)));
+                    return Err(error_codes::MISSING_HEADERS);
                 }
                 match metadata_string.split_once("?") {
                     Some((metadata_section, msg_section)) => {
@@ -59,18 +65,19 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
                             let kv = pair.trim_end().trim_start().split("=").map(|txt| txt.to_string()).collect::<Vec<String>>();
                             let k = match kv.get(0) {
                                 Some(k) => Ok(k.clone()),
-                                None => Err(api_err!(ApiErrorTy::MsgError(MsgError::InvalidHeaders)))
+                                None => Err(error_codes::MALFORMED_HEADERS)
                             }?;
                             let v = match kv.get(1) {
                                 Some(v) => Ok(v.clone()),
-                                None => Err(api_err!(ApiErrorTy::MsgError(MsgError::InvalidHeaders)))
+                                None => Err(error_codes::MALFORMED_HEADERS)
                             }?;
                             metadata.insert(k, v);
                         };
                         msg_chunk.extend_from_slice(msg_section.as_bytes());
                     },
                     None => {
-                        return Err(api_err!(ApiErrorTy::CouldNotParseChunk))
+                        log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), "");
+                        return Err(error_codes::COULD_NOT_PARSE_CHUNK)
                     }
                 }
                 if let Some(save_to_file_value) = metadata.remove("saveToFile") {
@@ -79,7 +86,7 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
                             while let Some(_chunk) = payload.next().await {
     
                             }
-                            return Err(api_err!(ApiErrorTy::MsgError(MsgError::FileStorageNotConfigured)));
+                            return Err(error_codes::FILE_STORAGE_NOT_CONFIGURED);
                         }
                         save_to_file = true;
                     }
@@ -91,9 +98,9 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
         let priority: u32 = match metadata.remove("priority") {
             Some(priority) => match priority.parse() {
                 Ok(priority) => Ok(priority),
-                Err(_error) => Err(api_err!(ApiErrorTy::MsgError(MsgError::InvalidPriority)))
+                Err(_error) => Err(error_codes::INVALID_PRIORITY)
             },
-            None => Err(api_err!(ApiErrorTy::MsgError(MsgError::MissingPriority)))
+            None => Err(error_codes::MISSING_PRIORITY)
         }?;
 
         let (msg_byte_size, msg) = {
@@ -101,7 +108,7 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
                 if let Some(byte_size_override_str) = metadata.get("byteSizeOverride") {
                     let msg_byte_size = match byte_size_override_str.parse::<u32>() {
                         Ok(byte_size_override) => Ok(byte_size_override),
-                        Err(_error) => Err(api_err!(ApiErrorTy::MsgError(MsgError::InvalidPriority)))
+                        Err(_error) => Err(error_codes::INVALID_BYTESIZE_OVERRIDE)
                     }?;
                     let msg_parse = metadata
                         .iter()
@@ -110,19 +117,25 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
                         .join("&");
                     Ok((msg_byte_size, msg_parse))
                 } else {
-                    Err(api_err!(ApiErrorTy::MsgError(MsgError::MissingByteSizeOverride)))
+                    Err(error_codes::MISSING_BYTESIZE_OVERRIDE)
                 }
             } else {
                 while let Some(chunk) = payload.next().await {
                     let chunk = match chunk {
                         Ok(chunk) => Ok(chunk),
-                        Err(error) => Err(api_err!(ApiErrorTy::CouldNotParseChunk, error))
+                        Err(error) => {
+                            log_err(error, file!(), line!(), "");
+                            Err(error)
+                        }
                     }?;
                     msg_chunk.extend_from_slice(&chunk);
                 }
                 match String::from_utf8(msg_chunk.to_vec()) {
                     Ok(msg) => Ok((msg.len() as u32, msg)),
-                    Err(error) => Err(api_err!(ApiErrorTy::CouldNotParseChunk, error))
+                    Err(error) => {
+                        log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
+                        return Err(error_codes::COULD_NOT_PARSE_CHUNK)
+                    }
                 }
             }
         }?;
@@ -130,11 +143,14 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
             let mut store = lock(&store)?;
             match store.add(priority, msg_byte_size) {
                 Ok(add_result) => Ok(add_result),
-                Err(error) => match &error.err_ty {
-                    StoreErrorTy::ExceedesStoreMax => Err(api_err!(ApiErrorTy::MsgError(MsgError::MsgExceedesStoreMax))),
-                    StoreErrorTy::ExceedesGroupMax => Err(api_err!(ApiErrorTy::MsgError(MsgError::MsgExceedsGroupMax))),
-                    StoreErrorTy::LacksPriority => Err(api_err!(ApiErrorTy::MsgError(MsgError::MsgLacksPriority))),
-                    _error_ty => Err(api_err!(ApiErrorTy::StoreError(error)))
+                Err(error) => match error {
+                    Error::ExceedesStoreMax => Err(error_codes::MSG_EXCEEDES_STORE_MAX),
+                    Error::ExceedesGroupMax => Err(error_codes::MSG_EXCEEDES_GROUP_MAX),
+                    Error::LacksPriority => Err(error_codes::MSG_LACKS_PRIORITY),
+                    error => {
+                        log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
+                        Err(error_codes::STORE_ERROR)
+                    }
                 },
             }
         }?;
@@ -145,13 +161,15 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
             {
                 let mut database = lock(&database)?;
                 if let Err(error) = database.del(uuid.clone()) {
-                    return Err(api_err!(ApiErrorTy::DbError(error)))
+                    log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
+                    return Err(error_codes::DATABASE_ERROR)
                 }
             }
             if let Some(file_storage) = &file_storage {
                 let mut file_storage = lock(&file_storage)?;
                 if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                    return Err(api_err!(ApiErrorTy::FileStorageError(error)));
+                    log_err(error, file!(), line!(), "Could not removed file from file list.");
+                    return Err(error);
                 }
             }
             deleted_count += 1;
@@ -165,18 +183,17 @@ pub async fn try_add<P: Error, T: Chunky<P>, E: Error>(
         if save_to_file {
             if let Some(file_storage) = file_storage {
                 let mut file_storage = lock(&file_storage)?;
-                if let Err(error) = add_to_file_storage(&mut file_storage, add_result.uuid.clone(), &msg_chunk, payload).await {
-                    return Err(api_err!(ApiErrorTy::FileStorageError(error)))
-                }
+                add_to_file_storage(&mut file_storage, add_result.uuid.clone(), &msg_chunk, payload).await?
             } else {
-                return Err(api_err!(ApiErrorTy::FileStorageNotFound));
+                log_err(error_codes::COULD_NOT_FIND_FILE_STORAGE, file!(), line!(), "");
+                return Err(error_codes::COULD_NOT_FIND_FILE_STORAGE);
             }
         }
         {        
             let mut database = lock(&database)?;
             if let Err(error) = database.add(add_result.uuid.clone(), Bytes::copy_from_slice(msg.as_bytes()), msg_byte_size) {
-                // log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
-                return Err(api_err!(ApiErrorTy::DbError(error)));
+                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
+                return Err(error_codes::DATABASE_ERROR);
             }
         }
         Ok(add_result.uuid)
