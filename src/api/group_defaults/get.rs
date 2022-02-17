@@ -7,7 +7,7 @@ use std::sync::Mutex;
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
     priority: u32,
-    max_byte_size: Option<u32>,
+    max_byte_size: Option<u64>,
 }
 
 pub fn handle(

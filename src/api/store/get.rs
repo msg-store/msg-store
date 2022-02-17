@@ -7,23 +7,23 @@ use super::super::lock;
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
     priority: u32,
-    max_byte_size: Option<u32>,
+    max_byte_size: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupData {
     priority: u32,
-    byte_size: u32,
-    max_byte_size: Option<u32>,
+    byte_size: u64,
+    max_byte_size: Option<u64>,
     msg_count: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreData {
-    byte_size: u32,
-    max_byte_size: Option<u32>,
+    byte_size: u64,
+    max_byte_size: Option<u64>,
     msg_count: usize,
     group_count: usize,
     groups: Vec<GroupData>,

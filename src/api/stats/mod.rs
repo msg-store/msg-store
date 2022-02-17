@@ -8,9 +8,9 @@ use std::fmt::Display;
 
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct Stats {
-    pub inserted: u32,
-    pub deleted: u32,
-    pub pruned: u32
+    pub inserted: u64,
+    pub deleted: u64,
+    pub pruned: u64
 }
 impl Stats {
     pub fn new() -> Stats {
@@ -20,12 +20,12 @@ impl Stats {
             pruned: 0
         }
     }
-    pub fn add(&mut self, inserted: u32, deleted: u32, pruned: u32) {
+    pub fn add(&mut self, inserted: u64, deleted: u64, pruned: u64) {
         self.inserted += inserted;
         self.deleted += deleted;
         self.pruned += pruned;
     }
-    pub fn replace(&mut self, inserted: u32, deleted: u32, pruned: u32) {
+    pub fn replace(&mut self, inserted: u64, deleted: u64, pruned: u64) {
         self.inserted = inserted;
         self.deleted = deleted;
         self.pruned = pruned;

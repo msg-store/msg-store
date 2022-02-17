@@ -25,7 +25,7 @@ macro_rules! memdb_error {
 
 pub struct MemDb {
     msgs: BTreeMap<Arc<Uuid>, Bytes>,
-    byte_size_data: BTreeMap<Arc<Uuid>, u32>
+    byte_size_data: BTreeMap<Arc<Uuid>, u64>
 }
 impl MemDb {
     pub fn new() -> MemDb {
@@ -36,7 +36,7 @@ impl MemDb {
     }
 }
 impl Db for MemDb {
-    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), DatabaseError> {
+    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u64) -> Result<(), DatabaseError> {
         self.msgs.insert(uuid.clone(), msg);
         self.byte_size_data.insert(uuid, msg_byte_size);
         Ok(())
@@ -52,7 +52,7 @@ impl Db for MemDb {
         self.byte_size_data.remove(&uuid);
         Ok(())
     }
-    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, DatabaseError> {
+    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u64)>, DatabaseError> {
         Ok(vec![])
     }
 }

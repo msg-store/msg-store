@@ -87,7 +87,7 @@ impl Leveldb {
 }
 
 impl Db for Leveldb {
-    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), DatabaseError> {
+    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u64) -> Result<(), DatabaseError> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
         let byte_size_str = msg_byte_size.to_string();
         let byte_size = byte_size_str.as_bytes();
@@ -120,13 +120,13 @@ impl Db for Leveldb {
         };
         Ok(())
     }
-    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, DatabaseError> {
+    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u64)>, DatabaseError> {
         self.data.iter(ReadOptions::new()).map(|(id, data)| {
             let data = match String::from_utf8(data) {
                 Ok(data) => Ok(data),
                 Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
             }?;
-            let data = match data.parse::<u32>() {
+            let data = match data.parse::<u64>() {
                 Ok(data) => Ok(data),
                 Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
             }?;
@@ -139,7 +139,7 @@ impl Db for Leveldb {
                 Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
             }?;
             Ok((uuid, data))
-        }).collect::<Result<Vec<(Arc<Uuid>, u32)>, DatabaseError>>()
+        }).collect::<Result<Vec<(Arc<Uuid>, u64)>, DatabaseError>>()
     }
 }
 
@@ -176,7 +176,7 @@ mod tests {
         let uuid = Uuid::from_string("1-0-1-0").unwrap();
         let inner_msg = b"my message";
         let msg = Bytes::copy_from_slice(inner_msg);
-        let msg_byte_size = inner_msg.len() as u32;
+        let msg_byte_size = inner_msg.len() as u64;
         {
             // get level instance
             // add one message

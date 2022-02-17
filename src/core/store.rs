@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
+
+
 #[derive(Debug)]
 pub enum StoreErrorTy {
     ExceedesStoreMax,
@@ -66,21 +68,21 @@ pub enum Deleted {
 }
 
 pub struct StoreDefaults {
-    pub max_byte_size: Option<u32>
+    pub max_byte_size: Option<u64>
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct GroupDefaults {
-    pub max_byte_size: Option<u32>,
+    pub max_byte_size: Option<u64>,
 }
 
 pub struct Group {
-    pub max_byte_size: Option<u32>,
-    pub byte_size: u32,
-    pub msgs_map: BTreeMap<Arc<Uuid>, u32>,
+    pub max_byte_size: Option<u64>,
+    pub byte_size: u64,
+    pub msgs_map: BTreeMap<Arc<Uuid>, u64>,
 }
 impl Group {
-    pub fn new(max_byte_size: Option<u32>) -> Group {
+    pub fn new(max_byte_size: Option<u64>) -> Group {
         Group { 
             max_byte_size,
             byte_size: 0, 
@@ -112,12 +114,12 @@ impl RemovedMsgs {
 pub struct PacketMetaData {
     pub uuid: Arc<Uuid>,
     pub priority: u32,
-    pub byte_size: u32
+    pub byte_size: u64
 }
 
 pub struct AddResult {
     pub uuid: Arc<Uuid>,
-    pub bytes_removed: u32,
+    pub bytes_removed: u64,
     pub groups_removed: Vec<u32>,
     pub msgs_removed: Vec<Arc<Uuid>>
 } 
@@ -138,8 +140,8 @@ pub struct AddResult {
 /// Messages that have been burned have been so automatically on insert or store/group defaults update once the
 /// max bytesize limit has been reached.
 pub struct Store {
-    pub max_byte_size: Option<u32>,
-    pub byte_size: u32,
+    pub max_byte_size: Option<u64>,
+    pub byte_size: u64,
     pub group_defaults: BTreeMap<u32, GroupDefaults>,
     pub uuid_manager: UuidManager,
     pub id_to_group_map: BTreeMap<Arc<Uuid>, u32>,
@@ -163,7 +165,7 @@ impl Store {
         })
     }
 
-    fn msg_excedes_max_byte_size(byte_size: &u32, max_byte_size: &u32, msg_byte_size: &u32) -> bool {
+    fn msg_excedes_max_byte_size(byte_size: &u64, max_byte_size: &u64, msg_byte_size: &u64) -> bool {
         &(byte_size + msg_byte_size) > max_byte_size
     }
 
@@ -191,7 +193,7 @@ impl Store {
         }
     }
 
-    fn check_msg_size_agains_store(&self, msg_byte_size: u32) -> Result<(), StoreError> {
+    fn check_msg_size_agains_store(&self, msg_byte_size: u64) -> Result<(), StoreError> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if msg_byte_size > store_max_byte_size {
                 return Err(store_error!(StoreErrorTy::ExceedesStoreMax))
@@ -200,7 +202,7 @@ impl Store {
         Ok(())
     }
 
-    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: u32, msg_byte_size: u32) -> Result<Group, StoreError> {
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: u32, msg_byte_size: u64) -> Result<Group, StoreError> {
         // check if the msg is too large for the target group
         if let Some(group_max_byte_size) = &group.max_byte_size {
             if &msg_byte_size > group_max_byte_size {
@@ -232,7 +234,7 @@ impl Store {
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(u32, Vec<Arc<Uuid>>), StoreError> {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u64, prune_type: PruneBy) -> Result<(u64, Vec<Arc<Uuid>>), StoreError> {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -257,7 +259,7 @@ impl Store {
         Ok((bytes_removed, removed_msgs))
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u64) -> Result<(u64, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
         let mut groups_removed = vec![];
         let mut all_removed_msgs = vec![];
         let mut bytes_removed = 0;
@@ -313,7 +315,7 @@ impl Store {
         Ok((bytes_removed, groups_removed, msgs_removed))
     }
 
-    fn insert_msg(&mut self, mut group: Group, uuid: Arc<Uuid>, priority: u32, msg_byte_size: u32) {
+    fn insert_msg(&mut self, mut group: Group, uuid: Arc<Uuid>, priority: u32, msg_byte_size: u64) {
         self.byte_size += msg_byte_size;                                          // increase store byte size
         self.id_to_group_map.insert(uuid.clone(), priority);            // insert the uuid into the uuid->priority map
         group.byte_size += msg_byte_size;                                         // increase the group byte size
@@ -353,11 +355,11 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, priority: u32, msg_byte_size: u32) -> Result<AddResult, StoreError> {
+    pub fn add(&mut self, priority: u32, msg_byte_size: u64) -> Result<AddResult, StoreError> {
         let uuid = match self.uuid_manager.next(priority) {
             Ok(uuid) => Ok(uuid),
             Err(error) => Err(store_error!(StoreErrorTy::UuidManagerError(error)))
@@ -392,12 +394,12 @@ impl Store {
     /// 
     /// let mut store = Store::new();
     /// let uuid = store.uuid(1);
-    /// let add_result = store.add_with_uuid(uuid, "my message".len() as u32).unwrap();
+    /// let add_result = store.add_with_uuid(uuid, "my message".len() as u64).unwrap();
     /// 
     /// ```
     ///
-    pub fn add_with_uuid(&mut self, uuid: Arc<Uuid>, msg_byte_size: u32) -> Result<AddResult, StoreError> {
-        // let msg_byte_size = msg.len() as u32;
+    pub fn add_with_uuid(&mut self, uuid: Arc<Uuid>, msg_byte_size: u64) -> Result<AddResult, StoreError> {
+        // let msg_byte_size = msg.len() as u64;
         let priority = uuid.priority;
 
         // check if the msg is too large for the store
@@ -447,7 +449,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// store.del(uuid).unwrap();
     /// 
     /// ```
@@ -498,7 +500,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "my message".len() as u32).unwrap();
+    /// store.add(1, "my message".len() as u64).unwrap();
     /// store.del_group(&1).unwrap();
     /// 
     /// assert!(store.get(None, None, false).unwrap().is_none());
@@ -529,7 +531,7 @@ impl Store {
     /// use msg_store::Store;
     /// 
     /// let mut store = Store::new();
-    /// let uuid = store.add(1, "my message".len() as u32).unwrap().uuid;
+    /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// let my_message = store.get(Some(uuid), None, false).unwrap();
     /// assert!(my_message.is_some());
     /// 
@@ -726,7 +728,7 @@ impl Store {
     /// Updates the defaults for a priority group
     /// 
     /// The method takes a GroupDefaults struct which contains a member: max_byte_size.
-    /// The max_byte_size member type is Option<u32>. This method will auto prune the group
+    /// The max_byte_size member type is Option<u64>. This method will auto prune the group
     /// if the group's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
@@ -737,8 +739,8 @@ impl Store {
     /// use msg_store::store::{Store,GroupDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo".len() as u32).unwrap();
-    /// store.add(1, "bar".len() as u32).unwrap();
+    /// store.add(1, "foo".len() as u64).unwrap();
+    /// store.add(1, "bar".len() as u64).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(3) });
@@ -747,7 +749,7 @@ impl Store {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(u32, Vec<Arc<Uuid>>), StoreError> {
+    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(u64, Vec<Arc<Uuid>>), StoreError> {
         let mut bytes_removed = 0;
         let mut msgs_removed = vec![];
         self.group_defaults.insert(priority, defaults.clone());
@@ -769,8 +771,8 @@ impl Store {
     /// 
     /// let mut store = Store::new();
     /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
-    /// store.add(1, "foo".len() as u32).unwrap();
-    /// store.add(1, "bar".len() as u32).unwrap();
+    /// store.add(1, "foo".len() as u64).unwrap();
+    /// store.add(1, "bar".len() as u64).unwrap();
     /// 
     /// let group_1 = store.groups_map.get(&1).expect("Could not find group");
     /// assert_eq!(Some(6), group_1.max_byte_size);
@@ -794,7 +796,7 @@ impl Store {
     /// Updates the defaults for the store
     /// 
     /// The method takes a StoreDefaults struct which contains a member: max_byte_size.
-    /// The max_byte_size member type is Option<u32>. This method will auto prune the store
+    /// The max_byte_size member type is Option<u64>. This method will auto prune the store
     /// if the store's current bytesize is greater than the new max bytesize default.
     /// 
     /// # Errors
@@ -805,8 +807,8 @@ impl Store {
     /// use msg_store::store::{Store, StoreDefaults};
     /// 
     /// let mut store = Store::new();
-    /// store.add(1, "foo".len() as u32).unwrap();
-    /// store.add(1, "bar".len() as u32).unwrap();
+    /// store.add(1, "foo".len() as u64).unwrap();
+    /// store.add(1, "bar".len() as u64).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
     /// 
     /// store.update_store_defaults(&StoreDefaults{ max_byte_size: Some(3) }).unwrap();
@@ -815,7 +817,7 @@ impl Store {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
+    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u64, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, u32::MAX, 0)
     }

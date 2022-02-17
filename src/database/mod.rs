@@ -41,7 +41,7 @@ impl Display for DatabaseError {
 
 pub trait Db: Send + Sync {
     fn get(&mut self, uuid: Arc<Uuid>) -> Result<Bytes, DatabaseError>;
-    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), DatabaseError>;
+    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u64) -> Result<(), DatabaseError>;
     fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), DatabaseError>;
-    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, DatabaseError>;
+    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u64)>, DatabaseError>;
 }

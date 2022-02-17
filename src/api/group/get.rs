@@ -14,16 +14,16 @@ pub struct Info {
 #[serde(rename_all = "camelCase")]
 pub struct Msg {
     uuid: String,
-    byte_size: u32,
+    byte_size: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
     priority: u32,
-    byte_size: u32,
-    max_byte_size: Option<u32>,
-    msg_count: u32,
+    byte_size: u64,
+    max_byte_size: Option<u64>,
+    msg_count: u64,
     messages: Vec<Msg>,
 }
 
@@ -39,7 +39,7 @@ pub fn handle(
                 priority: priority.clone(),
                 byte_size: group.byte_size,
                 max_byte_size: group.max_byte_size,
-                msg_count: group.msgs_map.len() as u32,
+                msg_count: group.msgs_map.len() as u64,
                 messages: match include_msg_data {
                     true => group
                         .msgs_map
@@ -64,7 +64,7 @@ pub fn handle(
                 priority: priority.clone(),
                 byte_size: group.byte_size,
                 max_byte_size: group.max_byte_size,
-                msg_count: group.msgs_map.len() as u32,
+                msg_count: group.msgs_map.len() as u64,
                 messages: match include_msg_data {
                     true => group
                         .msgs_map

@@ -16,7 +16,7 @@ pub fn handle(
     store_configuration_mutex: &Mutex<StoreConfig>,
     store_configuration_path_option: &Option<PathBuf>,
     priority: u32,
-    max_byte_size_option: Option<u32>
+    max_byte_size_option: Option<u64>
 ) -> Result<(), &'static str> {
     let defaults = GroupDefaults {
         max_byte_size: max_byte_size_option,
@@ -24,7 +24,7 @@ pub fn handle(
     let (pruned_count, msgs_removed) = {
         let mut store = lock(store_mutex)?;
         match store.update_group_defaults(priority, &defaults) {
-            Ok((_bytes_removed, msgs_removed)) => (msgs_removed.len() as u32, msgs_removed),
+            Ok((_bytes_removed, msgs_removed)) => (msgs_removed.len() as u64, msgs_removed),
             Err(error) => {
                 error_codes::log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
                 return Err(error_codes::STORE_ERROR)

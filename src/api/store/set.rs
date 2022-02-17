@@ -13,7 +13,7 @@ pub fn handle(
     stats_mutex: &Mutex<Stats>,
     store_config_mutex: &Mutex<StoreConfig>,
     store_config_path_option: &Option<PathBuf>,
-    max_byte_size: Option<u32>
+    max_byte_size: Option<u64>
 ) -> Result<(), &'static str> {    
     let (prune_count, pruned_uuids) = {
         let mut store = lock(store_mutex)?;        
@@ -22,7 +22,7 @@ pub fn handle(
             max_byte_size,
         };
         match store.update_store_defaults(&defaults) {
-            Ok((_bytes_removed, _groups_removed, msgs_removed)) => (msgs_removed.len() as u32, msgs_removed),
+            Ok((_bytes_removed, _groups_removed, msgs_removed)) => (msgs_removed.len() as u64, msgs_removed),
             Err(error) => {
                 log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
                 return Err(error_codes::STORE_ERROR)

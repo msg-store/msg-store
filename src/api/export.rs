@@ -225,7 +225,7 @@ pub fn handle(
                             return Err(error_codes::DATABASE_ERROR);
                         }
                     };                
-                    let msg_byte_size = msg.len() as u32;
+                    let msg_byte_size = msg.len() as u64;
     
                     let src_file_path = get_file_path_from_id(&file_storage.path, &uuid);
                     let dest_file_path = get_file_path_from_id(&file_storage_export_directory, &uuid);
@@ -277,7 +277,7 @@ pub fn handle(
                             return Err(error_codes::DATABASE_ERROR);
                         }
                     };                
-                    let msg_byte_size = msg.len() as u32;
+                    let msg_byte_size = msg.len() as u64;
 
                     // add the data to the leveldb backup
                     // if it errors then copy the destination file back to the source

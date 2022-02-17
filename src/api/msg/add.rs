@@ -106,7 +106,7 @@ pub async fn handle<T: Chunky>(
         let (msg_byte_size, msg) = {
             if save_to_file == true {
                 if let Some(byte_size_override_str) = metadata.get("byteSizeOverride") {
-                    let msg_byte_size = match byte_size_override_str.parse::<u32>() {
+                    let msg_byte_size = match byte_size_override_str.parse::<u64>() {
                         Ok(byte_size_override) => Ok(byte_size_override),
                         Err(_error) => Err(error_codes::INVALID_BYTESIZE_OVERRIDE)
                     }?;
@@ -131,7 +131,7 @@ pub async fn handle<T: Chunky>(
                     msg_chunk.extend_from_slice(&chunk);
                 }
                 match String::from_utf8(msg_chunk.to_vec()) {
-                    Ok(msg) => Ok((msg.len() as u32, msg)),
+                    Ok(msg) => Ok((msg.len() as u64, msg)),
                     Err(error) => {
                         log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
                         return Err(error_codes::COULD_NOT_PARSE_CHUNK)

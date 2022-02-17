@@ -96,7 +96,7 @@ pub mod config {
     #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub struct GroupConfig {
         pub priority: u32,
-        pub max_byte_size: Option<u32>,
+        pub max_byte_size: Option<u64>,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -108,7 +108,7 @@ pub mod config {
         pub leveldb_path: Option<PathBuf>,
         pub file_storage: Option<bool>,
         pub file_storage_path: Option<PathBuf>,
-        pub max_byte_size: Option<u32>,
+        pub max_byte_size: Option<u64>,
         pub groups: Option<Vec<GroupConfig>>,
         pub no_update: Option<bool>,
         pub update: Option<bool>
