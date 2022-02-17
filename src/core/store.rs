@@ -1,7 +1,60 @@
-use crate::core::errors::Error;
-use crate::core::uuid::{UuidManager,Uuid};
+use crate::core::uuid::{UuidManager,Uuid, UuidManagerError};
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::sync::Arc;
+
+#[derive(Debug)]
+pub enum StoreErrorTy {
+    ExceedesStoreMax,
+    ExceedesGroupMax,
+    LacksPriority,
+    SyncError,
+    UuidManagerError(UuidManagerError)
+}
+impl Display for StoreErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(Debug)]
+pub struct StoreError {
+    pub err_ty: StoreErrorTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for StoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "STORE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
+        if let Some(msg) = &self.msg {
+            write!(f, "{}", msg)
+        } else {
+            Ok(())
+        }
+    }   
+}
+
+macro_rules! store_error {
+    ($err_ty:expr) => {
+        StoreError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        StoreError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
+
 
 enum PruneBy {
     Group,
@@ -95,25 +148,29 @@ pub struct Store {
 
 impl Store {
 
-    pub fn new(node_id: Option<u16>) -> Store {
-        Store {
+    pub fn new(node_id: Option<u16>) -> Result<Store, StoreError> {
+        let uuid_manager = match UuidManager::new(node_id) {
+            Ok(uuid_manager) => Ok(uuid_manager),
+            Err(error) => Err(store_error!(StoreErrorTy::UuidManagerError(error)))
+        }?;
+        Ok(Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
-            uuid_manager: UuidManager::new(node_id).expect("Could not open uuid manager"),
+            uuid_manager,
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new()
-        }
+        })
     }
 
     fn msg_excedes_max_byte_size(byte_size: &u32, max_byte_size: &u32, msg_byte_size: &u32) -> bool {
         &(byte_size + msg_byte_size) > max_byte_size
     }
 
-    fn remove_msg(&mut self, uuid: Arc<Uuid>, group: &mut Group) -> Result<(), Error> {
+    fn remove_msg(&mut self, uuid: Arc<Uuid>, group: &mut Group) -> Result<(), StoreError> {
         let byte_size = match group.msgs_map.remove(&uuid) {
             Some(byte_size) => Ok(byte_size),
-            None => Err(Error::SyncError)
+            None => Err(store_error!(StoreErrorTy::SyncError))
         }?;
         self.id_to_group_map.remove(&uuid);
         self.byte_size -= byte_size;
@@ -134,21 +191,21 @@ impl Store {
         }
     }
 
-    fn check_msg_size_agains_store(&self, msg_byte_size: u32) -> Result<(), Error> {
+    fn check_msg_size_agains_store(&self, msg_byte_size: u32) -> Result<(), StoreError> {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if msg_byte_size > store_max_byte_size {
-                return Err(Error::ExceedesStoreMax)
+                return Err(store_error!(StoreErrorTy::ExceedesStoreMax))
             }
         }
         Ok(())
     }
 
-    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: u32, msg_byte_size: u32) -> Result<Group, Error> {
+    fn check_msg_size_against_group(&mut self, group: Group, msg_priority: u32, msg_byte_size: u32) -> Result<Group, StoreError> {
         // check if the msg is too large for the target group
         if let Some(group_max_byte_size) = &group.max_byte_size {
             if &msg_byte_size > group_max_byte_size {
                 self.groups_map.insert(msg_priority, group);
-                return Err(Error::ExceedesGroupMax);
+                return Err(store_error!(StoreErrorTy::ExceedesGroupMax));
             }
         }
 
@@ -169,13 +226,13 @@ impl Store {
         if let Some(store_max_byte_size) = self.max_byte_size {
             if Self::msg_excedes_max_byte_size(&higher_priority_msg_total, &store_max_byte_size, &msg_byte_size) {
                 self.groups_map.insert(msg_priority, group);
-                return Err(Error::LacksPriority);
+                return Err(store_error!(StoreErrorTy::LacksPriority));
             }
         }
         Ok(group)
     }
 
-    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(u32, Vec<Arc<Uuid>>), Error> {
+    fn prune_group(&mut self, group: &mut Group, msg_byte_size: u32, prune_type: PruneBy) -> Result<(u32, Vec<Arc<Uuid>>), StoreError> {
         let (byte_size, max_byte_size) = match prune_type {
             PruneBy::Group => (group.byte_size, group.max_byte_size),
             PruneBy::Store => (self.byte_size, self.max_byte_size)
@@ -200,7 +257,7 @@ impl Store {
         Ok((bytes_removed, removed_msgs))
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), Error> {
+    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u32) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
         let mut groups_removed = vec![];
         let mut all_removed_msgs = vec![];
         let mut bytes_removed = 0;
@@ -233,7 +290,7 @@ impl Store {
                     for group_data in &all_removed_msgs {
                         let mut group = match self.groups_map.remove(&group_data.priority) {
                             Some(group) => Ok(group),
-                            None => Err(Error::SyncError)
+                            None => Err(store_error!(StoreErrorTy::SyncError))
                         }?;
                         for uuid in group_data.msgs.iter() {
                             self.remove_msg(uuid.clone(), &mut group)?;
@@ -300,10 +357,10 @@ impl Store {
     /// 
     /// ```
     /// 
-    pub fn add(&mut self, priority: u32, msg_byte_size: u32) -> Result<AddResult, Error> {
+    pub fn add(&mut self, priority: u32, msg_byte_size: u32) -> Result<AddResult, StoreError> {
         let uuid = match self.uuid_manager.next(priority) {
             Ok(uuid) => Ok(uuid),
-            Err(_error) => Err(Error::UuidError)
+            Err(error) => Err(store_error!(StoreErrorTy::UuidManagerError(error)))
         }?;
         self.add_with_uuid(uuid, msg_byte_size)        
     }
@@ -339,7 +396,7 @@ impl Store {
     /// 
     /// ```
     ///
-    pub fn add_with_uuid(&mut self, uuid: Arc<Uuid>, msg_byte_size: u32) -> Result<AddResult, Error> {
+    pub fn add_with_uuid(&mut self, uuid: Arc<Uuid>, msg_byte_size: u32) -> Result<AddResult, StoreError> {
         // let msg_byte_size = msg.len() as u32;
         let priority = uuid.priority;
 
@@ -394,7 +451,7 @@ impl Store {
     /// store.del(uuid).unwrap();
     /// 
     /// ```
-    pub fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), Error> {
+    pub fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), StoreError> {
         let mut remove_group = false;
         let priority = match self.id_to_group_map.get(&uuid) {
             Some(priority) => priority,
@@ -447,7 +504,7 @@ impl Store {
     /// assert!(store.get(None, None, false).unwrap().is_none());
     /// 
     /// ```
-    pub fn del_group(&mut self, priority: &u32) -> Result<(), Error> {
+    pub fn del_group(&mut self, priority: &u32) -> Result<(), StoreError> {
         if let Some(group) = self.groups_map.remove(priority) {
             for (uuid, _msg_byte_size) in group.msgs_map.iter() {
                 self.id_to_group_map.remove(uuid);
@@ -483,7 +540,7 @@ impl Store {
     /// assert!(my_message.is_some());
     /// 
     /// ```
-    pub fn get(&self, uuid: Option<Arc<Uuid>>, priority: Option<u32>, reverse: bool) -> Result<Option<Arc<Uuid>>, Error> {
+    pub fn get(&self, uuid: Option<Arc<Uuid>>, priority: Option<u32>, reverse: bool) -> Result<Option<Arc<Uuid>>, StoreError> {
 
         if let Some(uuid) = uuid {
 
@@ -529,7 +586,7 @@ impl Store {
 
             match next_uuid_option {
                 Some(uuid) => Ok(Some(uuid.clone())),
-                None => Err(Error::SyncError)
+                None => Err(store_error!(StoreErrorTy::SyncError))
             }
 
         }
@@ -690,7 +747,7 @@ impl Store {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(u32, Vec<Arc<Uuid>>), Error> {
+    pub fn update_group_defaults(&mut self, priority: u32, defaults: &GroupDefaults) -> Result<(u32, Vec<Arc<Uuid>>), StoreError> {
         let mut bytes_removed = 0;
         let mut msgs_removed = vec![];
         self.group_defaults.insert(priority, defaults.clone());
@@ -758,15 +815,15 @@ impl Store {
     /// assert_eq!(3, store.byte_size); 
     /// 
     /// ```
-    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), Error> {
+    pub fn update_store_defaults(&mut self, defaults: &StoreDefaults) -> Result<(u32, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
         self.max_byte_size = defaults.max_byte_size;
         self.prune_store(None, u32::MAX, 0)
     }
 
-    pub fn uuid(&mut self, priority: u32) -> Result<Arc<Uuid>, Error> {
+    pub fn uuid(&mut self, priority: u32) -> Result<Arc<Uuid>, StoreError> {
         match self.uuid_manager.next(priority) {
             Ok(uuid) => Ok(uuid),
-            Err(_error) => Err(Error::UuidError)
+            Err(error) => Err(store_error!(StoreErrorTy::UuidManagerError(error)))
         }
     }
 

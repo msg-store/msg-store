@@ -6,8 +6,8 @@ use crate::api::file_storage::{
     FileStorage
 };
 use crate::api::stats::Stats;
-use crate::core::store::Store;
-use crate::core::errors::Error;
+use crate::core::store::{Store, StoreErrorTy};
+// use crate::core::store::Error;
 use crate::core::uuid::Uuid;
 use bytes::{Bytes, BytesMut};
 use futures::{Stream, StreamExt};
@@ -143,10 +143,10 @@ pub async fn handle<T: Chunky>(
             let mut store = lock(&store)?;
             match store.add(priority, msg_byte_size) {
                 Ok(add_result) => Ok(add_result),
-                Err(error) => match error {
-                    Error::ExceedesStoreMax => Err(error_codes::MSG_EXCEEDES_STORE_MAX),
-                    Error::ExceedesGroupMax => Err(error_codes::MSG_EXCEEDES_GROUP_MAX),
-                    Error::LacksPriority => Err(error_codes::MSG_LACKS_PRIORITY),
+                Err(error) => match error.err_ty {
+                    StoreErrorTy::ExceedesStoreMax => Err(error_codes::MSG_EXCEEDES_STORE_MAX),
+                    StoreErrorTy::ExceedesGroupMax => Err(error_codes::MSG_EXCEEDES_GROUP_MAX),
+                    StoreErrorTy::LacksPriority => Err(error_codes::MSG_LACKS_PRIORITY),
                     error => {
                         log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
                         Err(error_codes::STORE_ERROR)
