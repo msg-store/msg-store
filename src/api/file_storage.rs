@@ -1,4 +1,3 @@
-use crate::api::error_codes::{self, log_err};
 use crate::api::msg::add::Chunky;
 use crate::core::uuid::Uuid;
 use futures::StreamExt;
