@@ -1,7 +1,7 @@
 use bincode::{serialize, deserialize};
 use bytes::Bytes;
 use crate::core::uuid::Uuid;
-pub use crate::database::Db;
+pub use crate::database::{Db, DatabaseError, DatabaseErrorTy};
 use db_key::Key;
 use leveldb::database::Database;
 use leveldb::iterator::Iterable;
@@ -29,13 +29,32 @@ impl Key for Id {
     }
 }
 
+macro_rules! leveldb_error {
+    ($err_ty:expr) => {
+        DatabaseError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        DatabaseError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
+
 pub struct Leveldb {
     pub msgs: Database<Id>,
     pub data: Database<Id>
 }
 
 impl Leveldb {
-    pub fn new(dir: &Path) -> Result<Leveldb, String> {
+    pub fn new(dir: &Path) -> Result<Leveldb, DatabaseError> {
 
         let mut msgs_path = dir.to_path_buf();
         msgs_path.push("msgs");
@@ -52,17 +71,13 @@ impl Leveldb {
         msg_data_options.create_if_missing = true;
 
         let msgs = match Database::open(msgs_path, msgs_options) {
-            Ok(msgs) => msgs,
-            Err(error) => {
-                return Err(format!("PLUGIN_LEVEL_DB_ERROR_CODE: 034d85df-3e0e-4522-953c-af31cb6a7550. Could not open msgs database: {}", error.to_string()));
-            }
-        };
+            Ok(msgs) => Ok(msgs),
+            Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotOpenDatabase, error))
+        }?;
         let data = match Database::open(Path::new(msg_data_path), msg_data_options){
-            Ok(data) => data,
-            Err(error) => {
-                return Err(format!("PLUGIN_LEVEL_DB_ERROR_CODE: ef9cb8ae-8775-4cfc-8725-074e762287aa. Could not open msgs database: {}", error.to_string()));
-            } 
-        };
+            Ok(data) => Ok(data),
+            Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotOpenDatabase, error)) 
+        }?;
         
         Ok(Leveldb {
             msgs,
@@ -72,53 +87,58 @@ impl Leveldb {
 }
 
 impl Db for Leveldb {
-    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), String> {
+    fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), DatabaseError> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        self.data.put(WriteOptions::new(), Id(uuid_bytes.clone()), format!("{}", msg_byte_size).as_bytes()).expect("Could not insert metadata");
-        self.msgs.put(WriteOptions::new(), Id(uuid_bytes), &msg).expect("Could not insert msg");
+        let byte_size = msg_byte_size.to_string().as_bytes();
+        if let Err(error) = self.data.put(WriteOptions::new(), Id(uuid_bytes.clone()), byte_size) {
+            return Err(leveldb_error!(DatabaseErrorTy::CouldNotAddMsg, error))
+        };
+        if let Err(error) = self.msgs.put(WriteOptions::new(), Id(uuid_bytes), &msg) {
+            return Err(leveldb_error!(DatabaseErrorTy::CouldNotAddMsg, error))
+        };
         Ok(())
     }
-    fn get(&mut self, uuid: Arc<Uuid>) -> Result<Bytes, String> {
+    fn get(&mut self, uuid: Arc<Uuid>) -> Result<Bytes, DatabaseError> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        match self.msgs.get(ReadOptions::new(), Id(uuid_bytes)).expect("Could not get msg") {
+        let msg_option = match self.msgs.get(ReadOptions::new(), Id(uuid_bytes)) {
+            Ok(msg_option) => Ok(msg_option),
+            Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotGetMsg, error))
+        }?;
+        match msg_option {
             Some(msg) => Ok(Bytes::copy_from_slice(&msg)),
-            None => Err("Message not found".to_string())
+            None => Err(leveldb_error!(DatabaseErrorTy::MsgNotFound))
         }
     }
-    fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), String> {
+    fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), DatabaseError> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        self.msgs.delete(WriteOptions::new(), Id(uuid_bytes.clone())).expect("Could not delete msg");
-        self.data.delete(WriteOptions::new(), Id(uuid_bytes)).expect("Could not delete data");
+        if let Err(error) = self.msgs.delete(WriteOptions::new(), Id(uuid_bytes.clone())) {
+            return Err(leveldb_error!(DatabaseErrorTy::CouldNotDeleteMsg, error))
+        };
+        if let Err(error) = self.data.delete(WriteOptions::new(), Id(uuid_bytes)) {
+            return Err(leveldb_error!(DatabaseErrorTy::CouldNotDeleteMsg, error))
+        };
         Ok(())
     }
-    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, String> {
+    fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, DatabaseError> {
         self.data.iter(ReadOptions::new()).map(|(id, data)| {
             let data = match String::from_utf8(data) {
-                Ok(data) => data,
-                Err(_error) => {
-                    return Err("Could not convert bytes into String".to_string());
-                }
-            };
+                Ok(data) => Ok(data),
+                Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
+            }?;
             let data = match data.parse::<u32>() {
-                Ok(data) => data,
-                Err(_error) => {
-                    return Err("Could not parse u32".to_string());
-                }
-            };
+                Ok(data) => Ok(data),
+                Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
+            }?;
             let uuid = match String::from_utf8(id.0) {
-                Ok(uuid) => uuid,
-                Err(_error) => {
-                    return Err("Could not convert bytes into Uuid String".to_string())
-                }
-            };
+                Ok(uuid) => Ok(uuid),
+                Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
+            }?;
             let uuid = match Uuid::from_string(&uuid) {
-                Ok(uuid) => uuid,
-                Err(error) => {
-                    return Err(format!("{:#?}", error))
-                }
-            };
+                Ok(uuid) => Ok(uuid),
+                Err(error) => Err(leveldb_error!(DatabaseErrorTy::CouldNotFetchData, error))
+            }?;
             Ok((uuid, data))
-        }).collect::<Result<Vec<(Arc<Uuid>, u32)>, String>>()
+        }).collect::<Result<Vec<(Arc<Uuid>, u32)>, DatabaseError>>()
     }
 }
 
