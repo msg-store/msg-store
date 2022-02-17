@@ -87,7 +87,8 @@ impl Db for Leveldb {
     }
     fn del(&mut self, uuid: Arc<Uuid>) -> Result<(), String> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        self.msgs.delete(WriteOptions::new(), Id(uuid_bytes)).expect("Could not delete msg");
+        self.msgs.delete(WriteOptions::new(), Id(uuid_bytes.clone())).expect("Could not delete msg");
+        self.data.delete(WriteOptions::new(), Id(uuid_bytes)).expect("Could not delete data");
         Ok(())
     }
     fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u32)>, String> {
