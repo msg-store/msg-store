@@ -89,7 +89,8 @@ impl Leveldb {
 impl Db for Leveldb {
     fn add(&mut self, uuid: Arc<Uuid>, msg: Bytes, msg_byte_size: u32) -> Result<(), DatabaseError> {
         let uuid_bytes = uuid.to_string().as_bytes().to_vec();
-        let byte_size = msg_byte_size.to_string().as_bytes();
+        let byte_size_str = msg_byte_size.to_string();
+        let byte_size = byte_size_str.as_bytes();
         if let Err(error) = self.data.put(WriteOptions::new(), Id(uuid_bytes.clone()), byte_size) {
             return Err(leveldb_error!(DatabaseErrorTy::CouldNotAddMsg, error))
         };
