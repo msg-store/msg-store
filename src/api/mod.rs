@@ -103,6 +103,7 @@ pub mod config {
     pub struct StoreConfig {
         pub host: Option<String>,
         pub port: Option<u32>,
+        pub node_id: Option<u32>,
         pub database: Option<String>,
         pub leveldb_path: Option<PathBuf>,
         pub file_storage: Option<bool>,
@@ -118,6 +119,7 @@ pub mod config {
             StoreConfig {
                 host: Some("127.0.0.1".to_string()),
                 port: Some(8080),
+                node_id: None,
                 database: Some("mem".to_string()),
                 leveldb_path: None,
                 file_storage: Some(false),
