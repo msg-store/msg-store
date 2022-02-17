@@ -114,7 +114,7 @@ impl Db for Leveldb {
             let uuid = match Uuid::from_string(&uuid) {
                 Ok(uuid) => uuid,
                 Err(error) => {
-                    return Err(error)
+                    return Err(format!("{:#?}", error))
                 }
             };
             Ok((uuid, data))
