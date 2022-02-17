@@ -138,41 +138,80 @@ impl Ord for Uuid {
     }
 }
 
+#[derive(Debug)]
+pub enum UuidManagerErrorTy {
+    SystemTimeError
+}
+
+#[derive(Debug)]
+pub struct UuidManagerError {
+    pub err_ty: UuidManagerErrorTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+macro_rules! uuid_manager_error {
+    ($err_ty:expr) => {
+        UuidManagerError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        UuidManagerError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
+
 pub struct UuidManager {
     pub timestamp: u128,
     pub sequence: u32,
     pub node_id: u16
 }
 impl UuidManager {
-    pub fn default() -> UuidManager {
-        UuidManager {
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos(),
+    pub fn default() -> Result<UuidManager, UuidManagerError> {
+        let timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => Ok(duration.as_nanos()),
+            Err(error) => Err(uuid_manager_error!(UuidManagerErrorTy::SystemTimeError, error))
+        }?;
+        Ok(UuidManager {
+            timestamp,
             sequence: 1,
             node_id: 0
-        }
+        })
     }
-    pub fn new(node_id: Option<u16>) -> UuidManager {
+    pub fn new(node_id: Option<u16>) -> Result<UuidManager, UuidManagerError> {
         let node_id = match node_id {
             Some(node_id) => node_id,
             None => 0
         };
-        let mut manager = UuidManager::default();
+        let mut manager = UuidManager::default()?;
         manager.node_id = node_id;
-        manager
+        Ok(manager)
     }
-    pub fn next(&mut self, priority: u32) -> Arc<Uuid> {
-        let nano = SystemTime::now().duration_since(UNIX_EPOCH).expect("failed to get duration").as_nanos();
+    pub fn next(&mut self, priority: u32) -> Result<Arc<Uuid>, UuidManagerError> {
+        let nano = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => Ok(duration.as_nanos()),
+            Err(error) => Err(uuid_manager_error!(UuidManagerErrorTy::SystemTimeError, error))
+        }?;
         if nano != self.timestamp {
             self.timestamp = nano;
             self.sequence = 1;
         } else {
             self.sequence += 1;
         }
-        Arc::new(Uuid {
+        Ok(Arc::new(Uuid {
             priority,
             timestamp: self.timestamp,
             sequence: self.sequence,
             node_id: self.node_id           
-        })
+        }))
     }
 }

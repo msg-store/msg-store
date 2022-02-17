@@ -100,7 +100,7 @@ impl Store {
             max_byte_size: None,
             byte_size: 0,
             group_defaults: BTreeMap::new(),
-            uuid_manager: UuidManager::new(node_id),
+            uuid_manager: UuidManager::new(node_id).expect("Could not open uuid manager"),
             id_to_group_map: BTreeMap::new(),
             groups_map: BTreeMap::new()
         }
@@ -301,7 +301,10 @@ impl Store {
     /// ```
     /// 
     pub fn add(&mut self, priority: u32, msg_byte_size: u32) -> Result<AddResult, Error> {
-        let uuid = self.uuid_manager.next(priority);
+        let uuid = match self.uuid_manager.next(priority) {
+            Ok(uuid) => Ok(uuid),
+            Err(_error) => Err(Error::UuidError)
+        }?;
         self.add_with_uuid(uuid, msg_byte_size)        
     }
 
@@ -760,8 +763,11 @@ impl Store {
         self.prune_store(None, u32::MAX, 0)
     }
 
-    pub fn uuid(&mut self, priority: u32) -> Arc<Uuid> {
-        self.uuid_manager.next(priority)
+    pub fn uuid(&mut self, priority: u32) -> Result<Arc<Uuid>, Error> {
+        match self.uuid_manager.next(priority) {
+            Ok(uuid) => Ok(uuid),
+            Err(_error) => Err(Error::UuidError)
+        }
     }
 
 }

@@ -515,7 +515,7 @@ mod tests {
         #[test]
         fn should_reflect_node_id() {
             let mut store = Store::new(Some(10));
-            let uuid = store.uuid(1);
+            let uuid = store.uuid(1).unwrap();
             assert_eq!(10, uuid.node_id);            
         }
 
