@@ -29,7 +29,7 @@ pub async fn handle<T: Chunky>(
     file_storage: &Option<Mutex<FileStorage>>,
     stats: &Mutex<Stats>,
     database: &Mutex<Database>,
-    payload: &mut T) -> Result<Arc<Uuid>, &'static str> {
+    payload: &mut T) -> Result<Arc<Uuid>, String> {
 
         let mut metadata_string = String::new();
         let mut msg_chunk = BytesMut::new();
@@ -57,7 +57,7 @@ pub async fn handle<T: Chunky>(
             if metadata_string.contains("?") {
                 // debug!("msg start found!");
                 if metadata_string.len() == 0 {
-                    return Err(error_codes::MISSING_HEADERS);
+                    return Err(error_codes::MISSING_HEADERS.to_string());
                 }
                 match metadata_string.split_once("?") {
                     Some((metadata_section, msg_section)) => {
@@ -65,11 +65,11 @@ pub async fn handle<T: Chunky>(
                             let kv = pair.trim_end().trim_start().split("=").map(|txt| txt.to_string()).collect::<Vec<String>>();
                             let k = match kv.get(0) {
                                 Some(k) => Ok(k.clone()),
-                                None => Err(error_codes::MALFORMED_HEADERS)
+                                None => Err(error_codes::MALFORMED_HEADERS.to_string())
                             }?;
                             let v = match kv.get(1) {
                                 Some(v) => Ok(v.clone()),
-                                None => Err(error_codes::MALFORMED_HEADERS)
+                                None => Err(error_codes::MALFORMED_HEADERS.to_string())
                             }?;
                             metadata.insert(k, v);
                         };
@@ -77,7 +77,7 @@ pub async fn handle<T: Chunky>(
                     },
                     None => {
                         log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), "");
-                        return Err(error_codes::COULD_NOT_PARSE_CHUNK)
+                        return Err(error_codes::COULD_NOT_PARSE_CHUNK.to_string())
                     }
                 }
                 if let Some(save_to_file_value) = metadata.remove("saveToFile") {
@@ -86,7 +86,7 @@ pub async fn handle<T: Chunky>(
                             while let Some(_chunk) = payload.next().await {
     
                             }
-                            return Err(error_codes::FILE_STORAGE_NOT_CONFIGURED);
+                            return Err(error_codes::FILE_STORAGE_NOT_CONFIGURED.to_string());
                         }
                         save_to_file = true;
                     }
@@ -134,7 +134,7 @@ pub async fn handle<T: Chunky>(
                     Ok(msg) => Ok((msg.len() as u32, msg)),
                     Err(error) => {
                         log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
-                        return Err(error_codes::COULD_NOT_PARSE_CHUNK)
+                        return Err(error_codes::COULD_NOT_PARSE_CHUNK.to_string())
                     }
                 }
             }
@@ -162,14 +162,15 @@ pub async fn handle<T: Chunky>(
                 let mut database = lock(&database)?;
                 if let Err(error) = database.del(uuid.clone()) {
                     log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
-                    return Err(error_codes::DATABASE_ERROR)
+                    return Err(error_codes::DATABASE_ERROR.to_string())
                 }
             }
             if let Some(file_storage) = &file_storage {
                 let mut file_storage = lock(&file_storage)?;
                 if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                    log_err(error, file!(), line!(), "Could not removed file from file list.");
-                    return Err(error);
+                    // let tmp_err = error.to_string();
+                    // log_err(&tmp_err, file!(), line!(), "Could not removed file from file list.");
+                    return Err(error.to_string());
                 }
             }
             deleted_count += 1;
@@ -183,17 +184,19 @@ pub async fn handle<T: Chunky>(
         if save_to_file {
             if let Some(file_storage) = file_storage {
                 let mut file_storage = lock(&file_storage)?;
-                add_to_file_storage(&mut file_storage, add_result.uuid.clone(), &msg_chunk, payload).await?
+                if let Err(error) = add_to_file_storage(&mut file_storage, add_result.uuid.clone(), &msg_chunk, payload).await {
+                    return Err(error.to_string())
+                }
             } else {
                 log_err(error_codes::COULD_NOT_FIND_FILE_STORAGE, file!(), line!(), "");
-                return Err(error_codes::COULD_NOT_FIND_FILE_STORAGE);
+                return Err(error_codes::COULD_NOT_FIND_FILE_STORAGE.to_string());
             }
         }
         {        
             let mut database = lock(&database)?;
             if let Err(error) = database.add(add_result.uuid.clone(), Bytes::copy_from_slice(msg.as_bytes()), msg_byte_size) {
                 log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
-                return Err(error_codes::DATABASE_ERROR);
+                return Err(error_codes::DATABASE_ERROR.to_string());
             }
         }
         Ok(add_result.uuid)

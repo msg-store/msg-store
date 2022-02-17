@@ -32,9 +32,9 @@ pub fn handle(
     if let Some(file_storage_mutex) = file_storage_option {
         let mut file_storage = lock(&file_storage_mutex)?;
         for uuid in pruned_uuids {
-            if let Err(error_code) = rm_from_file_storage(&mut file_storage, &uuid) {
-                log_err(error_code, file!(), line!(), "");
-                return Err(error_code)
+            if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
+                // log_err(&error.to_string(), file!(), line!(), "");
+                return Err("FS ERROR")
             }
         }
     }

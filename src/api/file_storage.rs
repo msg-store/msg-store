@@ -3,6 +3,7 @@ use crate::api::msg::add::Chunky;
 use crate::core::uuid::Uuid;
 use futures::StreamExt;
 use std::collections::BTreeSet;
+use std::fmt::Display;
 use std::fs::{
     create_dir_all,
     read_dir,
@@ -15,6 +16,64 @@ use std::io::{
 };
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+#[derive(Debug)]
+pub enum FileStorageErrorTy {
+    CouldNotCreateDirectory,
+    CouldNotCreateFile,
+    CouldNotGetChunkFromPayload,
+    CouldNotReadDirectory,
+    CouldNotReadMetadata,
+    CouldNotRemoveFile,
+    CouldNotOpenFile,
+    CouldNotParseChunk,
+    CouldNotWriteToFIle,
+    DirectoryDoesNotExist,
+    PathIsNotADirectory
+}
+impl Display for FileStorageErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(Debug)]
+pub struct FileStorageError {
+    pub err_ty: FileStorageErrorTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for FileStorageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FILE_STORAGE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
+        if let Some(msg) = &self.msg {
+            write!(f, "{}", msg)
+        } else {
+            Ok(())
+        }
+    }   
+}
+
+macro_rules! fs_error {
+    ($err_ty:expr) => {
+        FileStorageError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        FileStorageError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
 
 pub struct FileStorage {
     pub index: BTreeSet<Arc<Uuid>>,
@@ -31,16 +90,13 @@ impl FileStorage {
 
 /// create a new dectory if one does not exist
 /// returns Ok(false) if no directory was created because it already existed
-pub fn create_directory(base_directory: &Path) -> Result<PathBuf, &'static str> {
+pub fn create_directory(base_directory: &Path) -> Result<PathBuf, FileStorageError> {
     let mut file_storage_path = base_directory.to_path_buf();
     file_storage_path.push("file-storage");
-    match create_dir_all(&file_storage_path) {
-        Ok(_) => Ok(file_storage_path),
-        Err(error) => {
-            log_err(error_codes::COULD_NOT_CREATE_DIRECTORY, file!(), line!(), error.to_string());
-            return Err(error_codes::COULD_NOT_CREATE_DIRECTORY)
-        }
+    if let Err(error) = create_dir_all(&file_storage_path) {
+        return Err(fs_error!(FileStorageErrorTy::CouldNotCreateDirectory, error))
     }
+    Ok(file_storage_path)
 }
 
 /// Create a the file path for a file from the file storage path
@@ -59,21 +115,16 @@ pub fn get_file_path_from_id(file_storage_path: &Path, uuid: &Uuid) -> PathBuf {
 /// ## Notes
 /// * Will ignore files that contain errors while reading, getting metadata or converting file
 /// name to uuid
-pub fn read_file_storage_direcotory(file_storage_path: &Path) -> Result<Vec<Arc<Uuid>>, &'static str> {
+pub fn read_file_storage_direcotory(file_storage_path: &Path) -> Result<Vec<Arc<Uuid>>, FileStorageError> {
     if !file_storage_path.exists() {
-        log_err(error_codes::DIRECTORY_DOES_NOT_EXIST, file!(), line!(), "Directory does not exist.");
-        return Err(error_codes::DIRECTORY_DOES_NOT_EXIST);
+        return Err(fs_error!(FileStorageErrorTy::DirectoryDoesNotExist));
     }
     if !file_storage_path.is_dir() {
-        log_err(error_codes::PATH_IS_NOT_A_DIRECTORY, file!(), line!(), "Path is not a directory.");
-        return Err(error_codes::PATH_IS_NOT_A_DIRECTORY)
+        return Err(fs_error!(FileStorageErrorTy::PathIsNotADirectory))
     }
     let uuids: Vec<Arc<Uuid>> = match read_dir(file_storage_path) {
         Ok(read_dir) => Ok(read_dir),
-        Err(error) => {
-            log_err(error_codes::COULD_NOT_READ_DIRECTORY, file!(), line!(), error.to_string());
-            Err(error_codes::COULD_NOT_READ_DIRECTORY)
-        }
+        Err(error) => Err(fs_error!(FileStorageErrorTy::CouldNotReadDirectory, error))
     }?.filter_map(|entry| {
         entry.ok()
     }).filter_map(|entry| {
@@ -104,75 +155,59 @@ pub fn read_file_storage_direcotory(file_storage_path: &Path) -> Result<Vec<Arc<
     Ok(uuids)
 }
 
-pub fn get_buffer(file_storage_path: &Path, uuid: &Uuid) -> Result<(BufReader<File>, u64), &'static str> {
+pub fn get_buffer(file_storage_path: &Path, uuid: &Uuid) -> Result<(BufReader<File>, u64), FileStorageError> {
     let uuid_string = uuid.to_string();
     let mut file_path = file_storage_path.to_path_buf();
     file_path.push(uuid_string);
     let file = match File::open(file_path) {
         Ok(file) => Ok(file),
-        Err(error) => {
-            log_err(error_codes::COULD_NOT_OPEN_FILE, file!(), line!(), error.to_string());
-            Err(error_codes::COULD_NOT_OPEN_FILE)
-        }
+        Err(error) => Err(fs_error!(FileStorageErrorTy::CouldNotOpenFile, error))
     }?;
     let metadata = match file.metadata() {
         Ok(metadata) => Ok(metadata),
-        Err(error) => {
-            log_err(error_codes::COULD_NOT_GET_METADATA, file!(), line!(), error.to_string());
-            Err(error_codes::COULD_NOT_GET_METADATA)
-        }
+        Err(error) => Err(fs_error!(FileStorageErrorTy::CouldNotReadMetadata, error))
     }?;
     let file_size = metadata.len();
     let buffer = BufReader::new(file);
     return Ok((buffer, file_size));
 }
 
-pub async fn write_to_disk<T: Chunky>(file_storage_path: &Path, uuid: &Uuid, first_chunk: &[u8], payload: &mut T) -> Result<(), &'static str> {
+pub async fn write_to_disk<T: Chunky>(file_storage_path: &Path, uuid: &Uuid, first_chunk: &[u8], payload: &mut T) -> Result<(), FileStorageError> {
     let file_path = get_file_path_from_id(file_storage_path, uuid);
     let mut file = match File::create(file_path) {
         Ok(file) => Ok(file),
-        Err(error) => {
-            log_err(error_codes::COULD_NOT_CREATE_FILE, file!(), line!(), error.to_string());
-            Err(error_codes::COULD_NOT_CREATE_FILE)
-        }
+        Err(error) => Err(fs_error!(FileStorageErrorTy::CouldNotCreateFile, error))
     }?;
     if let Err(error) = file.write(first_chunk) {
-        log_err(error_codes::COULD_NOT_WRITE_TO_FILE, file!(), line!(), error.to_string());
-        return Err(error_codes::COULD_NOT_WRITE_TO_FILE);
+        return Err(fs_error!(FileStorageErrorTy::CouldNotWriteToFIle, error))
     };
     while let Some(chunk) = payload.next().await {
         let chunk = match chunk {
             Ok(chunk) => Ok(chunk),
-            Err(error) => {
-                log_err(error_codes::COULD_NOT_GET_CHUNK_FROM_PAYLOAD, file!(), line!(), error.to_string());
-                Err(error_codes::COULD_NOT_GET_CHUNK_FROM_PAYLOAD)
-            }
+            Err(error) => Err(fs_error!(FileStorageErrorTy::CouldNotGetChunkFromPayload, error))
         }?;
         if let Err(error) = file.write(&chunk) {
-            log_err(error_codes::COULD_NOT_WRITE_TO_FILE, file!(), line!(), error.to_string());
-            return Err(error_codes::COULD_NOT_WRITE_TO_FILE);
+            return Err(fs_error!(FileStorageErrorTy::CouldNotWriteToFIle, error));
         };
     };
     Ok(())
 }
 
-pub fn rm_from_disk(file_storage_path: &Path, uuid: &Uuid) -> Result<bool, &'static str> {
+pub fn rm_from_disk(file_storage_path: &Path, uuid: &Uuid) -> Result<bool, FileStorageError> {
     let file_path = get_file_path_from_id(file_storage_path, uuid);
     if !file_path.exists() {
         return Ok(false)
     }
     if let Err(error) = rm_from_disk_wo_check(file_storage_path, uuid) {
-        log_err(error_codes::COULD_NOT_REMOVE_FILE, file!(), line!(), error.to_string());
-        return Err(error_codes::COULD_NOT_REMOVE_FILE);
+        return Err(fs_error!(FileStorageErrorTy::CouldNotRemoveFile, error));
     };
     Ok(true)
 }
 
-pub fn rm_from_disk_wo_check(file_storage_path: &Path, uuid: &Uuid) -> Result<(), &'static str> {
+pub fn rm_from_disk_wo_check(file_storage_path: &Path, uuid: &Uuid) -> Result<(), FileStorageError> {
     let file_path = get_file_path_from_id(file_storage_path, uuid);
     if let Err(error) = remove_file(file_path) {
-        log_err(error_codes::COULD_NOT_REMOVE_FILE, file!(), line!(), error.to_string());
-        return Err(error_codes::COULD_NOT_REMOVE_FILE);
+        return Err(fs_error!(FileStorageErrorTy::CouldNotRemoveFile, error));
     }
     Ok(())
 }
@@ -185,7 +220,7 @@ pub fn rm_from_disk_wo_check(file_storage_path: &Path, uuid: &Uuid) -> Result<()
 /// ## Returns
 /// Ok(true) if the file was removed
 /// Ok(false) if the file was already removed
-pub fn rm_from_file_storage(file_storage: &mut FileStorage, uuid: &Uuid) -> Result<bool, &'static str> {
+pub fn rm_from_file_storage(file_storage: &mut FileStorage, uuid: &Uuid) -> Result<bool, FileStorageError> {
     if file_storage.index.remove(uuid) {
         rm_from_disk(&file_storage.path, uuid)
     } else {
@@ -193,7 +228,7 @@ pub fn rm_from_file_storage(file_storage: &mut FileStorage, uuid: &Uuid) -> Resu
     }
 }
 
-pub async fn add_to_file_storage<T: Chunky>(file_storage: &mut FileStorage, uuid: Arc<Uuid>, first_chunk: &[u8], payload: &mut T) -> Result<(), &'static str> {
+pub async fn add_to_file_storage<T: Chunky>(file_storage: &mut FileStorage, uuid: Arc<Uuid>, first_chunk: &[u8], payload: &mut T) -> Result<(), FileStorageError> {
     write_to_disk(&file_storage.path, &uuid, first_chunk, payload).await?;
     file_storage.index.insert(uuid.clone());
     Ok(())

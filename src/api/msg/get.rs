@@ -113,9 +113,9 @@ pub fn handle(
         if file_storage.index.contains(&uuid) {
             let (file_buffer, file_size) = match get_buffer(&file_storage.path, &uuid) {
                 Ok(buffer_option) => Ok(buffer_option),
-                Err(error_code) => {
-                    log_err(error_code, file!(), line!(), "");
-                    Err(error_code)
+                Err(error) => {
+                    // log_err(&error.to_string(), file!(), line!(), "");
+                    return Err("FS ERROR")
                 }
             }?;
             let msg_header = match String::from_utf8(msg.to_vec()) {

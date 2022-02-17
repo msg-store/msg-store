@@ -191,15 +191,15 @@ pub fn handle(
             if let Some(file_storage_mutex) = file_storage_option {
 
                 // create file storage directory
-                if let Err(error_code) = create_directory(&export_dir_path) {
-                    log_err(error_code, file!(), line!(), "");
-                    return Err(error_code);
+                if let Err(error) = create_directory(&export_dir_path) {
+                    // log_err(&error.to_string(), file!(), line!(), "");
+                    return Err("FS ERROR");
                 }
                 let file_storage_export_directory = match create_directory(&export_dir_path) {
                     Ok(directory) => directory,
-                    Err(error_code) => {
-                        log_err(error_code, file!(), line!(), "");
-                        return Err(error_code);
+                    Err(error) => {
+                        // log_err(&error.to_string(), file!(), line!(), "");
+                        return Err("FS ERROR");
                     }
                 };
 
@@ -234,9 +234,9 @@ pub fn handle(
                         return Err(error_codes::COULD_NOT_COPY_FILE);
                     };
                     // remove the file from the index
-                    if let Err(error_code) = rm_from_file_storage(&mut file_storage, &uuid) {
-                        log_err(error_code, file!(), line!(), "");
-                        return Err(error_code);
+                    if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
+                        // log_err(&error.to_string(), file!(), line!(), "");
+                        return Err("FS ERROR");
                     }
 
                     // add the data to the leveldb backup
