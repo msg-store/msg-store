@@ -1,4 +1,4 @@
-use crate::api::lock;
+use crate::api::{lock, ApiError, NoErr};
 use crate::core::store::Store;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -27,11 +27,11 @@ pub struct Group {
     messages: Vec<Msg>,
 }
 
-pub fn handle(
+pub fn try_get(
     store_mutex: &Mutex<Store>,
     priority_option: Option<u32>,
     include_msg_data: bool
-) -> Result<Vec<Group>, &'static str> {
+) -> Result<Vec<Group>, ApiError<NoErr, NoErr>> {
     let store = lock(&store_mutex)?;
     if let Some(priority) = priority_option {
         if let Some(group) = store.groups_map.get(&priority) {

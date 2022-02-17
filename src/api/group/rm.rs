@@ -1,8 +1,12 @@
+
 use crate::{
+    api_err,
     api::{
+        ApiError,
+        ApiErrorTy,
+        NoErr,
         lock,
         Database,
-        error_codes,
         file_storage::{
             rm_from_file_storage,
             FileStorage
@@ -12,14 +16,15 @@ use crate::{
     core::store::Store,
     core::uuid::Uuid
 };
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 
-pub fn handle(
+pub fn try_rm<E: Error>(
     store_mutex: &Mutex<Store>, 
-    database_mutex: &Mutex<Database>, 
+    database_mutex: &Mutex<Database<E>>, 
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
-    priority: u32) -> Result<(), &'static str> {
+    priority: u32) -> Result<(), ApiError<E, NoErr>> {
     let list = {
         let store = lock(&store_mutex)?;
         // get list of messages to remove
@@ -39,22 +44,19 @@ pub fn handle(
         {
             let mut store = lock(&store_mutex)?;
             if let Err(error) = store.del(uuid.clone()) {
-                error_codes::log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
-                return Err(error_codes::STORE_ERROR);
+                return Err(api_err!(ApiErrorTy::StoreError(error)));
             }
         }
         {
             let mut db = lock(&database_mutex)?;
             if let Err(error) = db.del(uuid.clone()) {
-                error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
-                return Err(error_codes::DATABASE_ERROR);
+                return Err(api_err!(ApiErrorTy::DbError(error)));
             }
         }
         if let Some(file_storage_mutex) = &file_storage_option {
             let mut file_storage = lock(file_storage_mutex)?;
-            if let Err(error_code) = rm_from_file_storage(&mut file_storage, uuid) {
-                error_codes::log_err(error_code, file!(), line!(), "");
-                return Err(error_code)
+            if let Err(error) = rm_from_file_storage(&mut file_storage, uuid) {
+                return Err(api_err!(ApiErrorTy::FileStorageError(error)))
             }
         }
         deleted_count += 1;

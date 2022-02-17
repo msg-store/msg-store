@@ -1,7 +1,7 @@
 use crate::core::store::Store;
 use serde::Serialize;
 use std::sync::Mutex;
-use super::super::lock;
+use super::super::{ApiError, NoErr, lock};
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -30,7 +30,7 @@ pub struct StoreData {
     group_defaults: Vec<GroupDefaults>,
 }
 
-pub fn handle(store_mutex: &Mutex<Store>) -> Result<StoreData, &'static str> {
+pub fn try_get(store_mutex: &Mutex<Store>) -> Result<StoreData, ApiError<NoErr, NoErr>> {
     let store = lock(store_mutex)?;
     let groups = store
         .groups_map

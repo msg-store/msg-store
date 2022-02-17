@@ -1,10 +1,9 @@
-use crate::api::config::{StoreConfig, GroupConfig, update_config};
-use crate::api::lock;
+use crate::api::configuration::{StoreConfig, GroupConfig, update_config};
+use crate::api::{ApiErrorTy, ApiError, NoErr, lock};
 use crate::core::store::Store;
-use log::error;
+use crate::api_err;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::exit;
 use std::sync::Mutex;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -12,11 +11,11 @@ pub struct Info {
     priority: u32,
 }
 
-pub fn handle(
+pub fn try_rm(
     store_mutex: &Mutex<Store>,
     configuration_mutex: &Mutex<StoreConfig>,
     configuration_path_option: &Option<PathBuf>, 
-    priority: u32) -> Result<(), &'static str> {
+    priority: u32) -> Result<(), ApiError<NoErr, NoErr>> {
     {
         let mut store = lock(&store_mutex)?;
         store.delete_group_defaults(priority);
@@ -42,8 +41,7 @@ pub fn handle(
             .collect();
         config.groups = Some(new_groups);
         if let Err(error) = update_config(&config, configuration_path_option) {
-            error!("ERROR_CODE: 11d80bf2-5b87-436f-9c26-914ca2718347. Could not update config file: {}", error);
-            exit(1);
+            return Err(api_err!(ApiErrorTy::ConfigurationError(error)))
         }
     }
     Ok(())
