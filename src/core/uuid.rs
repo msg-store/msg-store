@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::Display;
 use std::sync::Arc;
 use std::time::{
     SystemTime,
@@ -13,6 +14,11 @@ pub enum UuidErrorTy {
     InvalidNodeId,
     InvalidFormat
 }
+impl Display for UuidErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 #[derive(Debug)]
 pub struct UuidError {
@@ -20,6 +26,16 @@ pub struct UuidError {
     pub file: &'static str,
     pub line: u32,
     pub msg: Option<String>
+}
+impl Display for UuidError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UUID_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
+        if let Some(msg) = &self.msg {
+            write!(f, "{}", msg)
+        } else {
+            Ok(())
+        }
+    }   
 }
 
 macro_rules! uuid_error {
@@ -142,6 +158,11 @@ impl Ord for Uuid {
 pub enum UuidManagerErrorTy {
     SystemTimeError
 }
+impl Display for UuidManagerErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 #[derive(Debug)]
 pub struct UuidManagerError {
@@ -149,6 +170,16 @@ pub struct UuidManagerError {
     pub file: &'static str,
     pub line: u32,
     pub msg: Option<String>
+}
+impl Display for UuidManagerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UUID_MANAGER_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
+        if let Some(msg) = &self.msg {
+            write!(f, "{}", msg)
+        } else {
+            Ok(())
+        }
+    }   
 }
 
 macro_rules! uuid_manager_error {
