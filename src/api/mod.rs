@@ -103,7 +103,7 @@ pub mod config {
     pub struct StoreConfig {
         pub host: Option<String>,
         pub port: Option<u32>,
-        pub node_id: Option<u32>,
+        pub node_id: Option<u16>,
         pub database: Option<String>,
         pub leveldb_path: Option<PathBuf>,
         pub file_storage: Option<bool>,
@@ -165,6 +165,7 @@ pub mod config {
         pub fn inherit(&mut self, configuration: Self) {
             self.host = configuration.host;
             self.port = configuration.port;
+            self.node_id = configuration.node_id;
             self.database = configuration.database;
             self.leveldb_path = configuration.leveldb_path;
             self.file_storage = configuration.file_storage;
