@@ -192,7 +192,7 @@ pub async fn handle<T: Chunky>(
         {        
             let mut database = lock(&database)?;
             if let Err(error) = database.add(add_result.uuid.clone(), Bytes::copy_from_slice(msg.as_bytes()), msg_byte_size) {
-                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
+                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
                 return Err(error_codes::DATABASE_ERROR);
             }
         }

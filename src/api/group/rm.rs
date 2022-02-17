@@ -46,7 +46,7 @@ pub fn handle(
         {
             let mut db = lock(&database_mutex)?;
             if let Err(error) = db.del(uuid.clone()) {
-                error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
+                error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
                 return Err(error_codes::DATABASE_ERROR);
             }
         }

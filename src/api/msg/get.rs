@@ -103,7 +103,7 @@ pub fn handle(
         match database.get(uuid.clone()) {
             Ok(msg) => Ok(msg),
             Err(error) => {
-                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error);
+                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
                 Err(error_codes::DATABASE_ERROR)
             }
         }
