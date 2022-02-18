@@ -27,14 +27,14 @@ pub enum MsgError {
     MalformedHeaders,
     MsgExceedesStoreMax,
     MsgExceedesGroupMax,
-    MsgLacksPriority
+    MsgLacksPriority,
+    CouldNotGetNextChunkFromPayload,
+    CouldNotParseChunk
 }
 
 #[derive(Debug)]
 pub enum AddErrorTy {
     CouldNotFindFileStorage,
-    CouldNotGetNextChunkFromPayload,
-    CouldNotParseChunk,
     DatabaseError(DatabaseError),
     FileStorageError(FileStorageError),
     LockingError,
@@ -102,11 +102,11 @@ pub async fn handle<T: Chunky>(
         while let Some(chunk) = payload.next().await {
             let chunk = match chunk {
                 Ok(chunk) => Ok(chunk),
-                Err(error) => Err(add_msg_error!(AddErrorTy::CouldNotGetNextChunkFromPayload, error))
+                Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotGetNextChunkFromPayload), error))
             }?;
             let mut chunk_string = match String::from_utf8(chunk.to_vec()) {
                 Ok(chunk_string) => Ok(chunk_string),
-                Err(error) => Err(add_msg_error!(AddErrorTy::CouldNotParseChunk, error))
+                Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotParseChunk), error))
             }?;
             chunk_string = chunk_string.trim_start().to_string();
             // debug!("recieved chunk: {}", chunk_string);
@@ -133,7 +133,7 @@ pub async fn handle<T: Chunky>(
                         msg_chunk.extend_from_slice(msg_section.as_bytes());
                     },
                     None => {
-                        return Err(add_msg_error!(AddErrorTy::CouldNotParseChunk))
+                        return Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotParseChunk)))
                     }
                 }
                 if let Some(save_to_file_value) = metadata.remove("saveToFile") {
@@ -179,13 +179,13 @@ pub async fn handle<T: Chunky>(
                 while let Some(chunk) = payload.next().await {
                     let chunk = match chunk {
                         Ok(chunk) => Ok(chunk),
-                        Err(error) => Err(add_msg_error!(AddErrorTy::CouldNotGetNextChunkFromPayload, error))
+                        Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotGetNextChunkFromPayload), error))
                     }?;
                     msg_chunk.extend_from_slice(&chunk);
                 }
                 match String::from_utf8(msg_chunk.to_vec()) {
                     Ok(msg) => Ok((msg.len() as u64, msg)),
-                    Err(error) => Err(add_msg_error!(AddErrorTy::CouldNotParseChunk, error))
+                    Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotParseChunk), error))
                 }
             }
         }?;
