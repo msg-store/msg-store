@@ -83,7 +83,8 @@ fn get_export_destination_directory(destination_directory: &Path) -> PathBuf {
         // repeat until a non-existing path is found        
         let mut count = 1;
         loop {
-            finalized_path.push(format!("-{}", count));
+            finalized_path = PathBuf::from(format!("{}-{}", finalized_path.to_str().unwrap(), count));
+            // finalized_path = PathBuf::new(format!("{}-{}", finalized_path.to_str().unwrap(), count));
             if !finalized_path.exists() {
                 break;
             }
