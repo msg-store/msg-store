@@ -31,6 +31,11 @@ pub enum MsgError {
     CouldNotGetNextChunkFromPayload,
     CouldNotParseChunk
 }
+impl Display for MsgError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 #[derive(Debug)]
 pub enum AddErrorTy {
