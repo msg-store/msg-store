@@ -924,6 +924,26 @@ mod tests {
             assert_eq!(Some(&1), store.id_to_group_map.get(&third_uuid));
         }
 
+        #[test]
+        fn should_return_add_result_with_pruned_msgs() {
+            // from the same priority
+            let mut store = Store::new(None).unwrap();
+            store.max_byte_size = Some(3);
+            let _first_uuid = store.add(1, "foo".len() as u64).expect("Could not add first msg").uuid;
+            let add_result = store.add(1, "foo".len() as u64).expect("Could not second msg");
+            assert_eq!(1, add_result.msgs_removed.len());
+            assert_eq!(3, add_result.bytes_removed);
+            assert_eq!(1, add_result.groups_removed[0]);
+
+            // from a lower priority
+            let mut store = Store::new(None).unwrap();
+            store.max_byte_size = Some(3);
+            let _first_uuid = store.add(1, "foo".len() as u64).expect("Could not add first msg").uuid;
+            let add_result = store.add(2, "foo".len() as u64).expect("Could not second msg");
+            assert_eq!(1, add_result.msgs_removed.len());
+            assert_eq!(3, add_result.bytes_removed);
+            assert_eq!(1, add_result.groups_removed[0]);
+        }
 
         #[test]
         fn should_return_msg_to_large_for_store_err() {
