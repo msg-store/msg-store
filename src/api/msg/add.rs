@@ -241,7 +241,7 @@ pub async fn handle<T: Chunky>(
                 Ok(stats) => Ok(stats),
                 Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
             }?;
-            stats.deleted += deleted_count;
+            stats.pruned += deleted_count;
             stats.inserted += 1;
         }
         // add to file manager if needed
