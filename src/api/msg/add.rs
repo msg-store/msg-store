@@ -144,7 +144,7 @@ pub async fn handle<T: Chunky>(
                         return Err(add_msg_error!(AddErrorTy::MsgError(MsgError::CouldNotParseChunk)))
                     }
                 }
-                if let Some(save_to_file_value) = metadata.remove("saveToFile") {
+                if let Some(save_to_file_value) = metadata.get("saveToFile") {
                     if save_to_file_value.to_lowercase() == "true" {
                         if let None = file_storage {
                             while let Some(_chunk) = payload.next().await {
