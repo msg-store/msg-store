@@ -48,7 +48,11 @@ pub enum AddErrorTy {
 }
 impl Display for AddErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Self::CouldNotFindFileStorage |
+            Self::LockingError => write!(f, "{}", self),
+            _ => write!(f, "({})", self)
+        }
     }
 }
 
