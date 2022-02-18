@@ -136,6 +136,11 @@ pub fn handle(
         // get the leveldb path
         let mut leveldb_path = export_dir_path.to_path_buf();
         leveldb_path.push("leveldb");
+
+        if let Err(error) = create_dir_all(&leveldb_path) {
+            return Err(export_error!(ExportErrorTy::CouldNotCreateDirectory, error))
+        }
+
         // open the leveldb instance
         let mut leveldb_backup = match Leveldb::new(&leveldb_path) {
             Ok(leveldb) => Ok(leveldb),
