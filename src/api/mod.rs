@@ -72,6 +72,20 @@ pub enum Either<A, B> {
     A(A),
     B(B)
 }
+impl<A, B> Either<A, B> {
+    pub fn a(self) -> A {
+        match self {
+            Self::A(inner) => inner,
+            Self::B(_) => panic!("Item is not A")
+        }
+    }
+    pub fn b(self) -> B {
+        match self {
+            Self::A(_) => panic!("Item is not B"),
+            Self::B(inner) => inner
+        }
+    }
+}
 
 pub fn lock<'a, T: Send + Sync>(item: &'a Mutex<T>) -> Result<MutexGuard<'a, T>, &'static str> {
     match item.lock() {
