@@ -15,7 +15,10 @@ pub enum StoreErrorTy {
 }
 impl Display for StoreErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            StoreErrorTy::UuidManagerError(_) => write!(f, "({})", self),
+            _ => write!(f, "{}", self)
+        }
     }
 }
 
@@ -29,11 +32,10 @@ pub struct StoreError {
 
 impl Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "STORE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
         if let Some(msg) = &self.msg {
-            write!(f, "{}", msg)
+            write!(f, "STORE_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
         } else {
-            Ok(())
+            write!(f, "STORE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
         }
     }   
 }

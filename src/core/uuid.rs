@@ -29,11 +29,10 @@ pub struct UuidError {
 }
 impl Display for UuidError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UUID_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
-        if let Some(msg) = &self.msg {
-            write!(f, "{}", msg)
+       if let Some(msg) = &self.msg {
+            write!(f, "UUID_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
         } else {
-            Ok(())
+            write!(f, "UUID_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
         }
     }   
 }
@@ -173,11 +172,10 @@ pub struct UuidManagerError {
 }
 impl Display for UuidManagerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UUID_MANAGER_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
         if let Some(msg) = &self.msg {
-            write!(f, "{}", msg)
+            write!(f, "UUID_MANAGER_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
         } else {
-            Ok(())
+            write!(f, "UUID_MANAGER_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
         }
     }   
 }

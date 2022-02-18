@@ -30,11 +30,10 @@ pub struct DatabaseError {
 }
 impl Display for DatabaseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DATABASE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)?;
         if let Some(msg) = &self.msg {
-            write!(f, "{}", msg)
+            write!(f, "DATABASE_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
         } else {
-            Ok(())
+            write!(f, "DATABASE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
         }
     }   
 }
