@@ -199,6 +199,7 @@ macro_rules! uuid_manager_error {
     };
 }
 
+#[derive(Debug)]
 pub struct UuidManager {
     pub timestamp: u128,
     pub sequence: u32,

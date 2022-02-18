@@ -59,16 +59,18 @@ macro_rules! store_error {
     };
 }
 
-
+#[derive(Debug)]
 enum PruneBy {
     Group,
     Store
 }
+#[derive(Debug)]
 pub enum Deleted {
     True,
     False
 }
 
+#[derive(Debug)]
 pub struct StoreDefaults {
     pub max_byte_size: Option<u64>
 }
@@ -78,6 +80,7 @@ pub struct GroupDefaults {
     pub max_byte_size: Option<u64>,
 }
 
+#[derive(Debug)]
 pub struct Group {
     pub max_byte_size: Option<u64>,
     pub byte_size: u64,
@@ -96,6 +99,7 @@ impl Group {
     }
 }
 
+#[derive(Debug)]
 struct RemovedMsgs {
     priority: u32,
     msgs: Vec<Arc<Uuid>>
@@ -119,6 +123,7 @@ pub struct PacketMetaData {
     pub byte_size: u64
 }
 
+#[derive(Debug)]
 pub struct AddResult {
     pub uuid: Arc<Uuid>,
     pub bytes_removed: u64,
@@ -141,6 +146,8 @@ pub struct AddResult {
 /// Messages that have been deleted have been so on instructions of the developer using the del method.
 /// Messages that have been burned have been so automatically on insert or store/group defaults update once the
 /// max bytesize limit has been reached.
+
+#[derive(Debug)]
 pub struct Store {
     pub max_byte_size: Option<u64>,
     pub byte_size: u64,
