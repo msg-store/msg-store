@@ -268,7 +268,7 @@ impl Store {
         Ok((bytes_removed, removed_msgs))
     }
 
-    fn prune_store(&mut self, group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u64) -> Result<(u64, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
+    fn prune_store(&mut self, mut group: Option<&mut Group>, msg_priority: u32, msg_byte_size: u64) -> Result<(u64, Vec<u32>, Vec<Arc<Uuid>>), StoreError> {
         let mut groups_removed = vec![];
         let mut all_removed_msgs = vec![];
         let mut bytes_removed = 0;
@@ -297,16 +297,42 @@ impl Store {
                         }
                         all_removed_msgs.push(removed_msgs);
                     }
+
+                    // prune from current group
+                    if let Some(group) = &group {
+                        let mut removed_msgs = RemovedMsgs::new(msg_priority);
+                        let mut removed_msg_count = 0;
+                        for (uuid, group_msg_byte_size) in group.msgs_map.iter() {
+                            if !Self::msg_excedes_max_byte_size(&(self.byte_size - bytes_removed), &store_max_byte_size, &msg_byte_size) {
+                                break;
+                            }
+                            bytes_removed += group_msg_byte_size;
+                            removed_msg_count += 1;
+                            removed_msgs.add(uuid.clone());
+                        }
+                        if group.msgs_map.len() == removed_msg_count {
+                            groups_removed.push(msg_priority);
+                        }
+                        all_removed_msgs.push(removed_msgs);
+                    }
                     // get groups of msgs that where removed
                     for group_data in &all_removed_msgs {
-                        let mut group = match self.groups_map.remove(&group_data.priority) {
-                            Some(group) => Ok(group),
-                            None => Err(store_error!(StoreErrorTy::SyncError))
-                        }?;
-                        for uuid in group_data.msgs.iter() {
-                            self.remove_msg(uuid.clone(), &mut group)?;
+                        if group_data.priority != msg_priority {
+                            let mut group = match self.groups_map.remove(&group_data.priority) {
+                                Some(group) => Ok(group),
+                                None => Err(store_error!(StoreErrorTy::SyncError))
+                            }?;
+                            for uuid in group_data.msgs.iter() {
+                                self.remove_msg(uuid.clone(), &mut group)?;
+                            }
+                            self.groups_map.insert(group_data.priority, group);
+                        } else {
+                            if let Some(mut group) = group.as_mut() {
+                                for uuid in group_data.msgs.iter() {
+                                    self.remove_msg(uuid.clone(), &mut group)?;
+                                }
+                            };
                         }
-                        self.groups_map.insert(group_data.priority, group);
                     }
                     for priority in &groups_removed {
                         self.groups_map.remove(&priority);
