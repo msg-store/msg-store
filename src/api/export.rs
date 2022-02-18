@@ -76,14 +76,14 @@ macro_rules! export_error {
 }
 
 /// Creates a export directory, appending an integer to create a unique directory if needed
-pub fn get_export_destination_directory(destination_directory: &Path) -> PathBuf {
+fn get_export_destination_directory(destination_directory: &Path) -> PathBuf {
     let mut finalized_path = destination_directory.to_path_buf();
     if destination_directory.exists() {
         // if it exists, then append a number to the path and check if it too exits.
         // repeat until a non-existing path is found        
         let mut count = 1;
         loop {
-            finalized_path.push(format!("msg-store-backup-{}", count));
+            finalized_path.push(format!("-{}", count));
             if !finalized_path.exists() {
                 break;
             }
@@ -94,7 +94,7 @@ pub fn get_export_destination_directory(destination_directory: &Path) -> PathBuf
     finalized_path
 }
 
-pub fn create_export_directory(export_directory: &Path) -> Result<bool, ExportError> {
+fn create_export_directory(export_directory: &Path) -> Result<bool, ExportError> {
     if export_directory.exists() {
         if let Err(error) = create_dir_all(export_directory) {
             return Err(export_error!(ExportErrorTy::CouldNotCreateDirectory, error))
@@ -130,6 +130,8 @@ pub fn handle(
         let mut deleted_count = 0;
         // convert the string into a pathbuf
         let export_dir_path = get_export_destination_directory(&export_directory);
+
+        create_export_directory(&export_dir_path)?;
 
         // get the leveldb path
         let mut leveldb_path = export_dir_path.to_path_buf();
