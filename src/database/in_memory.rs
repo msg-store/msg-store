@@ -53,6 +53,10 @@ impl Db for MemDb {
         Ok(())
     }
     fn fetch(&mut self) -> Result<Vec<(Arc<Uuid>, u64)>, DatabaseError> {
-        Ok(vec![])
+        let mut export = vec![];
+        for (uuid, byte_size) in self.byte_size_data.iter() {
+            export.push((uuid.clone(), *byte_size));
+        }
+        Ok(export)
     }
 }
