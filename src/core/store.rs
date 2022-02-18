@@ -16,8 +16,8 @@ pub enum StoreErrorTy {
 impl Display for StoreErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StoreErrorTy::UuidManagerError(_) => write!(f, "({})", self),
-            _ => write!(f, "{}", self)
+            StoreErrorTy::UuidManagerError(error) => write!(f, "({})", error),
+            error => write!(f, "{}", error)
         }
     }
 }
