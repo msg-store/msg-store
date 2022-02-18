@@ -169,7 +169,7 @@ pub async fn handle<T: Chunky>(
 
         let (msg_byte_size, msg) = {
             if save_to_file == true {
-                if let Some(byte_size_override_str) = metadata.get("byteSizeOverride") {
+                if let Some(byte_size_override_str) = metadata.get("bytesizeOverride") {
                     let msg_byte_size = match byte_size_override_str.parse::<u64>() {
                         Ok(byte_size_override) => Ok(byte_size_override),
                         Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::InvalidBytesizeOverride), error))
