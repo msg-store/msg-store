@@ -16,7 +16,7 @@ use std::fmt::Display;
 use std::marker::Unpin;
 use std::sync::{Arc,Mutex};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MsgError {
     FileStorageNotConfigured,
     InvalidBytesizeOverride,
