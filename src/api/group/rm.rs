@@ -1,16 +1,12 @@
-use crate::{
-    api::{
-        lock,
-        Database,
-        error_codes,
-        file_storage::{
-            rm_from_file_storage,
-            FileStorage
-        },
-        stats::Stats
-    },
-    core::store::Store,
-    core::uuid::Uuid
+use crate::core::store::{Store, StoreError};
+use crate::core::uuid::Uuid;
+use crate::database::DatabaseError;
+use crate::api::Database;
+use crate::api::file_storage::{rm_from_file_storage, FileStorage, FileStorageError};
+use crate::api::stats::Stats;
+use std::fmt::Display;
+use std::sync::{Arc, Mutex};
+
 };
 use std::sync::{Arc, Mutex};
 
