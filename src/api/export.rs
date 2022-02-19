@@ -18,22 +18,27 @@ use std::sync::Mutex;
 #[derive(Debug)]
 pub enum ExportErrorTy {
     CouldNotAddFileToBackup(DatabaseError),
+    DatabaseError(DatabaseError),
+    FileStorageError(FileStorageError),
+    StoreError(StoreError),
     CouldNotCopyFile,
     CouldNotCreateDirectory,
     CouldNotReinsertFileAfterError,
     CouldNotRemoveFileAfterError,
-    DatabaseError(DatabaseError),
-    FileStorageError(FileStorageError),
-    StoreError(StoreError),
     LockError
 }
 impl Display for ExportErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DatabaseError(error) => write!(f, "({})", error),
-            Self::FileStorageError(error) => write!(f, "({})", error),
-            Self::StoreError(error) => write!(f, "({})", error),
-            error => write!(f, "{:#?}", error)
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
+            Self::CouldNotAddFileToBackup(err) => write!(f, "({})", err),
+            Self::CouldNotCopyFile |
+            Self::CouldNotCreateDirectory |
+            Self::CouldNotReinsertFileAfterError |
+            Self::CouldNotRemoveFileAfterError |
+            Self::LockError => write!(f, "{:#?}", self)
         }
     }
 }

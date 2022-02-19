@@ -16,7 +16,13 @@ pub enum UuidErrorTy {
 }
 impl Display for UuidErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Self::InvalidPriority |
+            Self::InvalidTimestamp |
+            Self::InvalidSequence |
+            Self::InvalidNodeId |
+            Self::InvalidFormat => write!(f, "{:#?}", self)
+        }
     }
 }
 
@@ -159,7 +165,9 @@ pub enum UuidManagerErrorTy {
 }
 impl Display for UuidManagerErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Self::SystemTimeError => write!(f, "{:#?}", self)
+        }
     }
 }
 

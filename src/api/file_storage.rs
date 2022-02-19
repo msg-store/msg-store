@@ -32,7 +32,19 @@ pub enum FileStorageErrorTy {
 }
 impl Display for FileStorageErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Self::CouldNotCreateDirectory |
+            Self::CouldNotCreateFile |
+            Self::CouldNotGetChunkFromPayload |
+            Self::CouldNotReadDirectory |
+            Self::CouldNotReadMetadata |
+            Self::CouldNotRemoveFile |
+            Self::CouldNotOpenFile |
+            Self::CouldNotParseChunk |
+            Self::CouldNotWriteToFIle |
+            Self::DirectoryDoesNotExist |
+            Self::PathIsNotADirectory => write!(f, "{:#?}", self)
+        }
     }
 }
 

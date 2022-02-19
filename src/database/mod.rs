@@ -17,7 +17,14 @@ pub enum DatabaseErrorTy {
 }
 impl Display for DatabaseErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        match self {
+            Self::CouldNotOpenDatabase |
+            Self::CouldNotAddMsg |
+            Self::CouldNotGetMsg |
+            Self::CouldNotDeleteMsg |
+            Self::CouldNotFetchData |
+            Self::MsgNotFound => write!(f, "{}", self)
+        }
     }
 }
 

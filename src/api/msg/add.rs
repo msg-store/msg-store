@@ -1,4 +1,4 @@
-use crate::api::{Database, lock};
+use crate::api::Database;
 use crate::api::file_storage::{
     rm_from_file_storage,
     add_to_file_storage,
@@ -33,25 +33,41 @@ pub enum MsgError {
 }
 impl Display for MsgError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            Self::FileStorageNotConfigured |
+            Self::InvalidBytesizeOverride |
+            Self::InvalidPriority |
+            Self::MissingBytesizeOverride |
+            Self::MissingHeaders |
+            Self::MissingPriority |
+            Self::MalformedHeaders |
+            Self::MsgExceedesGroupMax |
+            Self::MsgExceedesStoreMax |
+            Self::MsgLacksPriority |
+            Self::CouldNotGetNextChunkFromPayload |
+            Self::CouldNotParseChunk => write!(f, "MSG_ERROR: {:#?}", self)
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum AddErrorTy {
-    CouldNotFindFileStorage,
     DatabaseError(DatabaseError),
     FileStorageError(FileStorageError),
-    LockingError,
     MsgError(MsgError),
-    StoreError(StoreErrorTy)
+    StoreError(StoreErrorTy),
+    CouldNotFindFileStorage,
+    LockingError
 }
 impl Display for AddErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::MsgError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
             Self::CouldNotFindFileStorage |
-            Self::LockingError => write!(f, "{}", self),
-            _ => write!(f, "({})", self)
+            Self::LockingError => write!(f, "{:#?}", self)
         }
     }
 }

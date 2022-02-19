@@ -7,17 +7,20 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum StoreErrorTy {
+    UuidManagerError(UuidManagerError),
     ExceedesStoreMax,
     ExceedesGroupMax,
     LacksPriority,
-    SyncError,
-    UuidManagerError(UuidManagerError)
+    SyncError
 }
 impl Display for StoreErrorTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StoreErrorTy::UuidManagerError(error) => write!(f, "({})", error),
-            error => write!(f, "{}", error)
+            Self::UuidManagerError(err) => write!(f, "({})", err),
+            Self::ExceedesStoreMax |
+            Self::ExceedesGroupMax |
+            Self::LacksPriority |
+            Self::SyncError => write!(f, "{:#?}", self)            
         }
     }
 }
