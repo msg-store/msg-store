@@ -214,7 +214,7 @@ pub async fn handle<T: Chunky>(
             }
         }?;
         let add_result = {
-            let mut store = match lock(&store) {
+            let mut store = match store.lock() {
                 Ok(store) => Ok(store),
                 Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
             }?;
@@ -233,7 +233,7 @@ pub async fn handle<T: Chunky>(
         let mut deleted_count = 0;
         for uuid in add_result.msgs_removed.into_iter() {
             {
-                let mut database = match lock(&database) {
+                let mut database = match database.lock() {
                     Ok(database) => Ok(database),
                     Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
                 }?;
@@ -242,7 +242,7 @@ pub async fn handle<T: Chunky>(
                 }
             }
             if let Some(file_storage) = &file_storage {
-                let mut file_storage = match lock(&file_storage) {
+                let mut file_storage = match file_storage.lock() {
                     Ok(file_storage) => Ok(file_storage),
                     Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
                 }?;
@@ -253,7 +253,7 @@ pub async fn handle<T: Chunky>(
             deleted_count += 1;
         }
         {
-            let mut stats = match lock(&stats) {
+            let mut stats = match stats.lock() {
                 Ok(stats) => Ok(stats),
                 Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
             }?;
@@ -263,7 +263,7 @@ pub async fn handle<T: Chunky>(
         // add to file manager if needed
         if save_to_file {
             if let Some(file_storage) = file_storage {
-                let mut file_storage = match lock(&file_storage) {
+                let mut file_storage = match file_storage.lock() {
                     Ok(file_storage) => Ok(file_storage),
                     Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
                 }?;
@@ -275,7 +275,7 @@ pub async fn handle<T: Chunky>(
             }
         }
         {        
-            let mut database = match lock(&database) {
+            let mut database = match database.lock() {
                 Ok(database) => Ok(database),
                 Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
             }?;

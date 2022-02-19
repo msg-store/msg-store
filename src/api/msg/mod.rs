@@ -406,5 +406,23 @@ mod tests {
             }            
         }
 
+        {
+            // should reject msg for exceeding the store max
+            let store_mx = {
+                let mut store = Store::new(None).unwrap();
+                store.max_byte_size = Some(3);
+                Mutex::new(store)
+            };
+            // should reject msg for exceeding the group max
+            let mut payload = fake_payload!("priority=1?for bar");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            assert!(add_err.to_string().contains("ADD_MSG_ERROR: (MSG_ERROR: MsgExceedesStoreMax). "))
+        }
+
     }
 }
