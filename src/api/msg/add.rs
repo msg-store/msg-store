@@ -25,8 +25,8 @@ pub enum MsgError {
     MissingHeaders,
     MissingPriority,
     MalformedHeaders,
-    MsgExceedesStoreMax,
     MsgExceedesGroupMax,
+    MsgExceedesStoreMax,
     MsgLacksPriority,
     CouldNotGetNextChunkFromPayload,
     CouldNotParseChunk
