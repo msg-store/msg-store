@@ -1,15 +1,80 @@
 use bytes::Bytes;
-use crate::api::{lock, Database, Either};
-use crate::api::error_codes::{self, log_err};
-use crate::api::file_storage::{get_buffer, FileStorage};
-use crate::core::store::Store;
+use crate::api::{Database, Either};
+use crate::api::file_storage::{get_buffer, FileStorage, FileStorageError};
+use crate::core::store::{Store, StoreError};
 use crate::core::uuid::Uuid;
+use crate::database::DatabaseError;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
+use std::fmt::Display;
 use std::fs::File;
 use std::pin::Pin;
 use std::io::{BufReader, Read};
 use std::sync::{Arc, Mutex};
+
+#[derive(Debug)]
+pub enum GetErrorTy {
+    DatabaseError(DatabaseError),
+    FileStorageError(FileStorageError),
+    MsgError(MsgError),
+    StoreError(StoreError),
+    CouldNotFindFileStorage,
+    LockingError,
+    CouldNotGetNextChunkFromPayload,
+    CouldNotParseChunk
+}
+impl Display for GetErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::MsgError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
+            Self::CouldNotFindFileStorage |
+            Self::LockingError |
+            Self::CouldNotGetNextChunkFromPayload |
+            Self::CouldNotParseChunk => write!(f, "{:#?}", self)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct GetError {
+    pub err_ty: GetErrorTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for GetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(msg) = &self.msg {
+            write!(f, "GET_MSG_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
+        } else {
+            write!(f, "GET_MSG_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
+        }
+    }   
+}
+
+macro_rules! get_msg_error {
+    ($err_ty:expr) => {
+        GetError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        GetError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
+
 
 pub struct ReturnBody {
     pub header: String,
@@ -32,7 +97,7 @@ impl ReturnBody {
     }
 }
 impl Stream for ReturnBody {
-    type Item = Result<Bytes, &'static str>;
+    type Item = Result<Bytes, GetError>;
     fn poll_next(
         mut self: Pin<&mut Self>, 
         _cx: &mut Context<'_>
@@ -45,8 +110,7 @@ impl Stream for ReturnBody {
             if limit >= 665600 {
                 let mut buffer = [0; 665600];
                 if let Err(error) = self.msg.read(&mut buffer) {
-                    error_codes::log_err(error_codes::COULD_NOT_READ_BUFFER, file!(), line!(), error.to_string());
-                    return Poll::Ready(Some(Err(error_codes::COULD_NOT_READ_BUFFER)));
+                    return Poll::Ready(Some(Err(get_msg_error!(GetErrorTy::CouldNotGetNextChunkFromPayload, error))));
                 }
                 {
                     let mut body = self.as_mut().get_mut();
@@ -58,8 +122,7 @@ impl Stream for ReturnBody {
             } else {
                 let mut buffer = Vec::with_capacity(limit as usize);
                 if let Err(error) = self.msg.read_to_end(&mut buffer) {
-                    error_codes::log_err(error_codes::COULD_NOT_READ_BUFFER, file!(), line!(), error.to_string());
-                    return Poll::Ready(Some(Err(error_codes::COULD_NOT_READ_BUFFER)));
+                    return Poll::Ready(Some(Err(get_msg_error!(GetErrorTy::CouldNotParseChunk, error))));
                 };
                 {
                     let mut body = self.as_mut().get_mut();
@@ -77,6 +140,28 @@ impl Stream for ReturnBody {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum MsgError {
+    FileStorageNotConfigured,
+    InvalidBytesizeOverride,
+    InvalidPriority,
+    MissingBytesizeOverride,
+    MissingHeaders,
+    MissingPriority,
+    MalformedHeaders,
+    MsgExceedesGroupMax,
+    MsgExceedesStoreMax,
+    MsgLacksPriority,
+    CouldNotGetNextChunkFromPayload,
+    CouldNotParseChunk
+}
+impl Display for MsgError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+
 pub fn handle(
     store: &Mutex<Store>,
     database_mutex: &Mutex<Database>,
@@ -84,66 +169,57 @@ pub fn handle(
     uuid_option: Option<Arc<Uuid>>,
     priority_option: Option<u32>,
     reverse_option: bool
-) -> Result<Option<Either<ReturnBody, String>>, &'static str> {
+) -> Result<Option<Either<ReturnBody, String>>, GetError> {
     let uuid = {
-        let store = lock(&store)?;
+        let store = match store.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
+        }?;
         match store.get(uuid_option, priority_option, reverse_option) {
             Ok(uuid) => match uuid {
                 Some(uuid) => Ok(uuid),
                 None => return Ok(None)
             },
-            Err(error) => {
-                log_err(error_codes::SYNC_ERROR, file!(), line!(), error.to_string());
-                Err(error_codes::SYNC_ERROR)
-            }
+            Err(error) => Err(get_msg_error!(GetErrorTy::StoreError(error)))
         }
     }?;
     let msg = {
-        let mut database = lock(&database_mutex)?;
+        let mut database = match database_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
+        }?;
         match database.get(uuid.clone()) {
             Ok(msg) => Ok(msg),
-            Err(error) => {
-                log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
-                Err(error_codes::DATABASE_ERROR)
-            }
+            Err(error) => Err(get_msg_error!(GetErrorTy::DatabaseError(error)))
         }
     }?;
     if let Some(file_storage_mutex) = &file_storage_option {
-        let file_storage = lock(file_storage_mutex)?;
+        let file_storage = match file_storage_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
+        }?;
         if file_storage.index.contains(&uuid) {
             let (file_buffer, file_size) = match get_buffer(&file_storage.path, &uuid) {
                 Ok(buffer_option) => Ok(buffer_option),
-                Err(error) => {
-                    // log_err(&error.to_string(), file!(), line!(), "");
-                    return Err("FS ERROR")
-                }
+                Err(error) => Err(get_msg_error!(GetErrorTy::FileStorageError(error)))
             }?;
             let msg_header = match String::from_utf8(msg.to_vec()) {
                 Ok(msg_header) => Ok(msg_header),
-                Err(error) => {
-                    log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
-                    Err(error_codes::COULD_NOT_PARSE_CHUNK)
-                }
+                Err(error) => Err(get_msg_error!(GetErrorTy::CouldNotParseChunk, error))
             }?;
             let body = ReturnBody::new(format!("uuid={}&{}?", uuid.to_string(), msg_header), file_size, file_buffer);
             Ok(Some(Either::A(body)))
         } else {
             let msg = match String::from_utf8(msg.to_vec()) {
                 Ok(msg) => Ok(msg),
-                Err(error) => {
-                    log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
-                    Err(error_codes::COULD_NOT_PARSE_CHUNK)
-                }
+                Err(error) => Err(get_msg_error!(GetErrorTy::CouldNotParseChunk, error))
             }?;
             Ok(Some(Either::B(format!("uuid={}?{}", uuid.to_string(), msg))))
         }
     } else {
         let msg = match String::from_utf8(msg.to_vec()) {
             Ok(msg) => Ok(msg),
-            Err(error) => {
-                log_err(error_codes::COULD_NOT_PARSE_CHUNK, file!(), line!(), error.to_string());
-                Err(error_codes::COULD_NOT_PARSE_CHUNK)
-            }
+            Err(error) => Err(get_msg_error!(GetErrorTy::CouldNotParseChunk, error))
         }?;
         Ok(Some(Either::B(format!("uuid={}?{}", uuid.to_string(), msg))))
     }

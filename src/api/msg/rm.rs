@@ -1,45 +1,115 @@
 use crate::api::{
-    lock,
     Database,
     stats::Stats
 };
-use crate::api::error_codes;
-use crate::api::file_storage::{rm_from_file_storage, FileStorage};
-use crate::core::store::Store;
+use crate::api::file_storage::{rm_from_file_storage, FileStorage, FileStorageError};
+use crate::core::store::{Store, StoreError};
 use crate::core::uuid::Uuid;
+use crate::database::DatabaseError;
+use std::fmt::Display;
 use std::sync::{Arc, Mutex};
+
+#[derive(Debug)]
+pub enum RemoveErrorTy {
+    DatabaseError(DatabaseError),
+    FileStorageError(FileStorageError),
+    StoreError(StoreError),
+    CouldNotFindFileStorage,
+    LockingError,
+    CouldNotGetNextChunkFromPayload,
+    CouldNotParseChunk
+}
+impl Display for RemoveErrorTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
+            Self::CouldNotFindFileStorage |
+            Self::LockingError |
+            Self::CouldNotGetNextChunkFromPayload |
+            Self::CouldNotParseChunk => write!(f, "{:#?}", self)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RemoveError {
+    pub err_ty: RemoveErrorTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for RemoveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(msg) = &self.msg {
+            write!(f, "REMOVE_MSG_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
+        } else {
+            write!(f, "REMOVE_MSG_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
+        }
+    }   
+}
+
+macro_rules! rm_msg_error {
+    ($err_ty:expr) => {
+        RemoveError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        RemoveError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
 
 pub fn handle(
     store_mutex: &Mutex<Store>,
     database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
-    uuid: Arc<Uuid>) -> Result<(), &'static str> {
+    uuid: Arc<Uuid>) -> Result<(), RemoveError> {
     {
-        let mut store = lock(&store_mutex)?;
+        let mut store = match store_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+        }?;
         if let Err(error) = store.del(uuid.clone()) {
-            error_codes::log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
-            return Err(error_codes::STORE_ERROR)
+            return Err(rm_msg_error!(RemoveErrorTy::StoreError(error)))
         }
     }
     {
-        let mut db = lock(&database_mutex)?;
+        let mut db = match database_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+        }?;
         if let Err(error) = db.del(uuid.clone()) {
-            error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
-            return Err(error_codes::DATABASE_ERROR)
+            return Err(rm_msg_error!(RemoveErrorTy::DatabaseError(error)));
         }
     }
     {
         if let Some(file_storage_mutex) = &file_storage_option {
-            let mut file_storage = lock(file_storage_mutex)?;
+            let mut file_storage = match file_storage_mutex.lock() {
+                Ok(gaurd) => Ok(gaurd),
+                Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+            }?;
             if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                // error_codes::log_err(&error.to_string(), file!(), line!(), "");
-                return Err("FS ERROR")
+                return Err(rm_msg_error!(RemoveErrorTy::FileStorageError(error)))
             }
         }
     }
     {
-        let mut stats = lock(&stats_mutex)?;
+        let mut stats = match stats_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+        }?;
         stats.deleted += 1;
     }
     Ok(())
