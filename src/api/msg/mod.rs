@@ -5,7 +5,7 @@ pub mod rm;
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use crate::core::store::{Store, StoreDefaults};
+    use crate::core::store::{Store, StoreDefaults, GroupDefaults};
     use crate::api::file_storage::FileStorage;
     use crate::api::stats::Stats;
     use crate::database::Db;
@@ -14,7 +14,7 @@ mod tests {
     use futures::executor::block_on;
     use std::sync::Mutex;
     use std::task::Poll;
-    use super::add::{handle as add_handle, Chunky};
+    use super::add::{handle as add_handle, Chunky, AddErrorTy, MsgError};
     use super::get::{handle as get_handle, ReturnBody};
     use super::rm::handle as rm_handle;
     use tempdir::TempDir;
@@ -214,4 +214,197 @@ mod tests {
         
     }
 
+    #[test]
+    fn should_reject_messages() {
+        let store_mx = Mutex::new(Store::new(None).unwrap());
+        let database_mx: Mutex<Box<dyn Db>> = Mutex::new(Box::new(MemDb::new()));
+        let stats_mx = Mutex::new(Stats::new());
+        let tmp_dir = TempDir::new("should_add_get_and_rm_msg").unwrap();
+        let file_storage_op = Some(Mutex::new(FileStorage::new(tmp_dir.path())));
+
+        {
+            // should reject file storage not being configured
+            let mut payload = fake_payload!("priority=1&saveToFile=true&bytesizeoverhead=1?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &None,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::FileStorageNotConfigured, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        {
+            // should reject for invalid bytesizeOverride
+            let mut payload = fake_payload!("priority=1&saveToFile=true&bytesizeOverride=true?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::InvalidBytesizeOverride, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        {
+            // should reject for invalid priority
+            let mut payload = fake_payload!("priority=mypriority?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::InvalidPriority, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        {
+            // should reject for missing bytesizeOverride
+            let mut payload = fake_payload!("priority=1&saveToFile=true?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MissingBytesizeOverride, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        // {
+        //     // should reject for missing headers
+        //     let mut payload = fake_payload!("my-msg");
+        //     let add_err = block_on(add_handle(
+        //         &store_mx, 
+        //         &file_storage_op,
+        //         &stats_mx, 
+        //         &database_mx, 
+        //         &mut payload)).err().unwrap();
+        //     if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+        //         assert_eq!(MsgError::MissingHeaders, msg_err)
+        //     } else {
+        //         panic!("Not a msg error");
+        //     }
+        // }
+
+        {
+            // should reject for missing priority
+            let mut payload = fake_payload!("myparam=4?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MissingPriority, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        {
+            // should reject msg for malformed headers
+            let mut payload = fake_payload!("myheaders?my-msg");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MalformedHeaders, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }
+        }
+
+        {
+            let store_mx = {
+                let mut store = Store::new(None).unwrap();
+                store.update_group_defaults(1, &GroupDefaults { max_byte_size: Some(3) }).unwrap();
+                Mutex::new(store)
+            };
+            // should reject msg for exceeding the group max            
+            let mut payload = fake_payload!("priority=1?for bar");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MsgExceedesGroupMax, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }            
+        }
+
+        {
+            // should reject msg for exceeding the store max
+            let store_mx = {
+                let mut store = Store::new(None).unwrap();
+                store.max_byte_size = Some(3);
+                Mutex::new(store)
+            };
+            // should reject msg for exceeding the group max
+            let mut payload = fake_payload!("priority=1?for bar");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MsgExceedesStoreMax, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }            
+        }
+
+        {
+            // should reject msg for lacking priority
+            let store_mx = {
+                let mut store = Store::new(None).unwrap();
+                store.max_byte_size = Some(3);
+                Mutex::new(store)
+            };
+            // should reject msg for exceeding the group max
+            let mut payload = fake_payload!("priority=2?foo");
+            block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).unwrap();
+            let mut payload = fake_payload!("priority=1?foo");
+            let add_err = block_on(add_handle(
+                &store_mx, 
+                &file_storage_op,
+                &stats_mx, 
+                &database_mx, 
+                &mut payload)).err().unwrap();
+            if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
+                assert_eq!(MsgError::MsgLacksPriority, msg_err)
+            } else {
+                panic!("Not a msg error");
+            }            
+        }
+
+    }
 }
