@@ -56,8 +56,8 @@ macro_rules! api_error {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
-    priority: u32,
-    max_byte_size: Option<u64>,
+    pub priority: u32,
+    pub max_byte_size: Option<u64>,
 }
 
 pub async fn handle(
