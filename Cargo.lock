@@ -39,6 +39,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "database-plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes",
+ "msg-store",
+ "msg-store-uuid",
+]
+
+[[package]]
 name = "db-key"
 version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,6 +176,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "in-memory-database-plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes",
+ "database-plugin",
+ "msg-store",
+ "msg-store-uuid",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -180,6 +201,20 @@ dependencies = [
  "db-key",
  "leveldb-sys",
  "libc",
+]
+
+[[package]]
+name = "leveldb-plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes",
+ "database-plugin",
+ "db-key",
+ "leveldb",
+ "msg-store",
+ "msg-store-uuid",
+ "serde",
 ]
 
 [[package]]
@@ -219,17 +254,12 @@ checksum = "308cc39be01b73d0d18f82a0e7b2a3df85245f84af96fdddc5d202d27e47b86a"
 name = "msg-store"
 version = "0.8.0"
 dependencies = [
- "bincode",
- "bytes",
- "db-key",
- "futures",
- "leveldb",
- "log",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tempdir",
+ "msg-store-uuid",
 ]
+
+[[package]]
+name = "msg-store-uuid"
+version = "0.1.0"
 
 [[package]]
 name = "num_cpus"
@@ -388,6 +418,24 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server-api"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "database-plugin",
+ "futures",
+ "in-memory-database-plugin",
+ "leveldb-plugin",
+ "log",
+ "msg-store",
+ "msg-store-uuid",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tempdir",
 ]
 
 [[package]]

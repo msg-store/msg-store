@@ -1,0 +1,16 @@
+[package]
+name = "leveldb-plugin"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = { version = "1.3.3" }
+bytes = "1.1.0"
+database-plugin = { path = "../database-plugin" }
+db-key = { version = "0.0.5" }
+leveldb = { version = "0.8.6" }
+msg-store = { path = "../msg-store" }
+msg-store-uuid = { path = "../msg-store-uuid" }
+serde = { version = "1.0", features = ["derive"] }

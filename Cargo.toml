@@ -1,4 +1,9 @@
 [workspace]
 members = [
-    "msg-store"
+    "msg-store",
+    "msg-store-uuid",
+    "database-plugin",
+    "in-memory-database-plugin",
+    "leveldb-plugin",
+    "server-api"
 ]
