@@ -1,0 +1,23 @@
+{
+  "name": "msg-store",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test --workspaces"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msg-store/msg-store.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/msg-store/msg-store/issues"
+  },
+  "workspaces": [
+    "js-clients",
+    "js-clients/msg-store-http-client"
+  ],
+  "homepage": "https://github.com/msg-store/msg-store#readme"
+}

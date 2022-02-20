@@ -1,0 +1,30 @@
+{
+  "name": "msg-store-http-client",
+  "version": "1.0.0",
+  "description": "a http client for the msg-store",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "mocha tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msg-store/msg-store.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/msg-store/msg-store/issues"
+  },
+  "homepage": "https://github.com/msg-store/msg-store#readme",
+  "dependencies": {
+    "query-string": "^7.1.1"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.0",
+    "@types/node": "^17.0.13",
+    "@types/query-string": "^6.3.0",
+    "chai": "^4.3.6",
+    "mocha": "^9.2.0"
+  }
+}
