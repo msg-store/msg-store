@@ -3,6 +3,7 @@ members = [
     "msg-store",
     "msg-store-uuid",
     "database-plugin",
+    "http-server-leveldb-filestorage",
     "in-memory-database-plugin",
     "leveldb-plugin",
     "server-api"
