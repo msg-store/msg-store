@@ -2,9 +2,9 @@
 members = [
     "msg-store",
     "msg-store-uuid",
-    "database-plugin",
     "http-server-leveldb-filestorage",
-    "in-memory-database-plugin",
-    "leveldb-plugin",
+    "msg_store_database_plugin",
+    "msg_store_database_in_memory_plugin",
+    "msg_store_database_leveldb_plugin",
     "server-api"
 ]

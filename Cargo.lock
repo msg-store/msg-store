@@ -664,16 +664,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "database-plugin"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "bytes 1.1.0",
- "msg-store",
- "msg-store-uuid",
-]
-
-[[package]]
 name = "db-key"
 version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1020,15 +1010,15 @@ dependencies = [
  "actix-web-actors",
  "bytes 1.1.0",
  "clap",
- "database-plugin",
  "dirs",
  "env_logger",
  "futures",
- "in-memory-database-plugin",
- "leveldb-plugin",
  "log",
  "msg-store",
  "msg-store-uuid",
+ "msg_store_database_in_memory_plugin",
+ "msg_store_database_leveldb_plugin",
+ "msg_store_database_plugin",
  "serde",
  "serde_json",
  "server-api",
@@ -1055,17 +1045,6 @@ dependencies = [
  "matches",
  "unicode-bidi",
  "unicode-normalization",
-]
-
-[[package]]
-name = "in-memory-database-plugin"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "bytes 1.1.0",
- "database-plugin",
- "msg-store",
- "msg-store-uuid",
 ]
 
 [[package]]
@@ -1151,20 +1130,6 @@ dependencies = [
  "db-key",
  "leveldb-sys",
  "libc",
-]
-
-[[package]]
-name = "leveldb-plugin"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "bytes 1.1.0",
- "database-plugin",
- "db-key",
- "leveldb",
- "msg-store",
- "msg-store-uuid",
- "serde",
 ]
 
 [[package]]
@@ -1310,6 +1275,41 @@ dependencies = [
 [[package]]
 name = "msg-store-uuid"
 version = "0.1.0"
+
+[[package]]
+name = "msg_store_database_in_memory_plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes 1.1.0",
+ "msg-store",
+ "msg-store-uuid",
+ "msg_store_database_plugin",
+]
+
+[[package]]
+name = "msg_store_database_leveldb_plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes 1.1.0",
+ "db-key",
+ "leveldb",
+ "msg-store",
+ "msg-store-uuid",
+ "msg_store_database_plugin",
+ "serde",
+]
+
+[[package]]
+name = "msg_store_database_plugin"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "bytes 1.1.0",
+ "msg-store",
+ "msg-store-uuid",
+]
 
 [[package]]
 name = "net2"
@@ -1750,13 +1750,13 @@ name = "server-api"
 version = "0.1.0"
 dependencies = [
  "bytes 1.1.0",
- "database-plugin",
  "futures",
- "in-memory-database-plugin",
- "leveldb-plugin",
  "log",
  "msg-store",
  "msg-store-uuid",
+ "msg_store_database_in_memory_plugin",
+ "msg_store_database_leveldb_plugin",
+ "msg_store_database_plugin",
  "rand 0.8.5",
  "serde",
  "serde_json",

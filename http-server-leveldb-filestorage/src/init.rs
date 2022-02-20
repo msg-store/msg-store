@@ -1,9 +1,9 @@
 use clap::{App, Arg};
 use dirs::home_dir;
 use msg_store::{Store, StoreDefaults, GroupDefaults, StoreError};
-use database_plugin::{Db, DatabaseError};
-use in_memory_database_plugin::MemDb;
-use leveldb_plugin::Leveldb;
+use msg_store_database_plugin::{Db, DatabaseError};
+use msg_store_database_in_memory_plugin::MemDb;
+use msg_store_database_leveldb_plugin::Leveldb;
 use server_api::file_storage::{
     FileStorage,
     FileStorageError,

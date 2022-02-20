@@ -3,7 +3,7 @@ use crate::{Database, Either};
 use crate::file_storage::{get_buffer, FileStorage, FileStorageError};
 use msg_store::{Store, StoreError};
 use msg_store_uuid::Uuid;
-use database_plugin::DatabaseError;
+use msg_store_database_plugin::DatabaseError;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use std::fmt::Display;

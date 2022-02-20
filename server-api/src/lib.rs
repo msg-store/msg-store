@@ -1,4 +1,4 @@
-use database_plugin::Db;
+use msg_store_database_plugin::Db;
 pub mod export;
 pub mod file_storage;
 pub mod group;

@@ -1,5 +1,5 @@
 use msg_store::{Store, StoreDefaults, StoreError};
-use database_plugin::DatabaseError;
+use msg_store_database_plugin::DatabaseError;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Mutex;

@@ -1,6 +1,6 @@
 use crate::config::{update_config, GroupConfig, StoreConfig, ConfigError};
 use msg_store::{GroupDefaults, Store, StoreError};
-use database_plugin::DatabaseError;
+use msg_store_database_plugin::DatabaseError;
 use crate::Database;
 use crate::file_storage::{rm_from_file_storage, FileStorage, FileStorageError};
 use crate::stats::Stats;

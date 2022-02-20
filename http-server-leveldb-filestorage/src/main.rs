@@ -8,7 +8,7 @@ use server_api::config::StoreConfig;
 use server_api::file_storage::FileStorage;
 use server_api::stats::Stats;
 use msg_store::Store;
-use database_plugin::Db;
+use msg_store_database_plugin::Db;
 use env_logger::{Builder, Target};
 use std::{
     path::PathBuf, sync::Mutex

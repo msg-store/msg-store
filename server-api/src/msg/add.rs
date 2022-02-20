@@ -7,7 +7,7 @@ use crate::file_storage::{
 use crate::stats::Stats;
 use crate::file_storage::FileStorageError;
 use msg_store::{Store, StoreErrorTy};
-use database_plugin::DatabaseError;
+use msg_store_database_plugin::DatabaseError;
 use msg_store_uuid::Uuid;
 use bytes::{Bytes, BytesMut};
 use futures::{Stream, StreamExt};

@@ -1,6 +1,6 @@
 use msg_store::{Store, StoreError};
 use msg_store_uuid::Uuid;
-use database_plugin::DatabaseError;
+use msg_store_database_plugin::DatabaseError;
 use crate::Database;
 use crate::file_storage::{rm_from_file_storage, FileStorage, FileStorageError};
 use crate::stats::Stats;

@@ -1,7 +1,7 @@
 use bincode::{serialize, deserialize};
 use bytes::Bytes;
 use msg_store_uuid::Uuid;
-pub use database_plugin::{Db, DatabaseError, DatabaseErrorTy};
+pub use msg_store_database_plugin::{Db, DatabaseError, DatabaseErrorTy};
 use db_key::Key;
 use leveldb::database::Database;
 use leveldb::iterator::Iterable;
@@ -154,7 +154,7 @@ impl Db for Leveldb {
 mod tests {
     use bytes::Bytes;
     use msg_store_uuid::Uuid;
-    use database_plugin::Db;
+    use msg_store_database_plugin::Db;
     use crate::Leveldb;
     use std::fs::{create_dir_all, remove_dir_all};
     use std::path::{Path, PathBuf};

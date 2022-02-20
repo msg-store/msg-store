@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use msg_store_uuid::Uuid;
-use database_plugin::{Db, DatabaseError, DatabaseErrorTy};
+use msg_store_database_plugin::{Db, DatabaseError, DatabaseErrorTy};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

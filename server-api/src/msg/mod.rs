@@ -8,8 +8,8 @@ pub mod tests {
     use msg_store::{Store, StoreDefaults, GroupDefaults};
     use crate::file_storage::FileStorage;
     use crate::stats::Stats;
-    use database_plugin::Db;
-    use in_memory_database_plugin::MemDb;
+    use msg_store_database_plugin::Db;
+    use msg_store_database_in_memory_plugin::MemDb;
     use futures::{Stream, StreamExt};
     use futures::executor::block_on;
     use std::sync::Mutex;

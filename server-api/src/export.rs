@@ -8,7 +8,7 @@ use crate::file_storage::{
 };
 use crate::stats::Stats;
 use msg_store::{Store, StoreError};
-use leveldb_plugin::{Db, Leveldb, DatabaseError};
+use msg_store_database_leveldb_plugin::{Db, Leveldb, DatabaseError};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::fmt::Display;
@@ -281,8 +281,8 @@ mod tests {
     use crate::msg::tests::FakePayload;
     use crate::stats::Stats;
     use msg_store::Store;
-    use database_plugin::Db;
-    use leveldb_plugin::Leveldb;
+    use msg_store_database_plugin::Db;
+    use msg_store_database_leveldb_plugin::Leveldb;
     use futures::executor::block_on;
     use rand::prelude::random;
     use std::convert::AsRef;
