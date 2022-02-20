@@ -183,7 +183,7 @@ pub fn get_buffer(file_storage_path: &Path, uuid: &Uuid) -> Result<(BufReader<Fi
     return Ok((buffer, file_size));
 }
 
-pub async fn write_to_disk<T: Chunky>(file_storage_path: &Path, uuid: &Uuid, first_chunk: &[u8], payload: &mut T) -> Result<(), FileStorageError> {
+pub async fn write_to_disk<T: Chunky>(file_storage_path: &Path, uuid: &Uuid, first_chunk: &[u8], mut payload: T) -> Result<(), FileStorageError> {
     let file_path = get_file_path_from_id(file_storage_path, uuid);
     let mut file = match File::create(file_path) {
         Ok(file) => Ok(file),
@@ -239,7 +239,7 @@ pub fn rm_from_file_storage(file_storage: &mut FileStorage, uuid: &Uuid) -> Resu
     }
 }
 
-pub async fn add_to_file_storage<T: Chunky>(file_storage: &mut FileStorage, uuid: Arc<Uuid>, first_chunk: &[u8], payload: &mut T) -> Result<(), FileStorageError> {
+pub async fn add_to_file_storage<T: Chunky>(file_storage: &mut FileStorage, uuid: Arc<Uuid>, first_chunk: &[u8], payload: T) -> Result<(), FileStorageError> {
     write_to_disk(&file_storage.path, &uuid, first_chunk, payload).await?;
     file_storage.index.insert(uuid.clone());
     Ok(())

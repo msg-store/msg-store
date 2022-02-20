@@ -68,7 +68,7 @@ mod tests {
         let msg = "Hello, world";
         let msg_len = msg.len() as u64;
         let payload_str = format!("priority=1?{}", msg);
-        let mut payload = fake_payload!(payload_str);
+        let payload = fake_payload!(payload_str);
 
         // insert msg
         let uuid = block_on(add_handle(
@@ -76,7 +76,7 @@ mod tests {
             &file_storage_op,
             &stats_mx, 
             &database_mx, 
-            &mut payload)).unwrap();
+            payload)).unwrap();
         
         // make insert assertions
         {
@@ -104,7 +104,7 @@ mod tests {
         }
 
         let payload_str = format!("priority=1&saveToFile=true&bytesizeOverride={}?{}",msg_len, msg);
-        let mut payload = fake_payload!(payload_str);
+        let payload = fake_payload!(payload_str);
         
         // insert 'stream'
         let uuid_stream = block_on(add_handle(
@@ -112,7 +112,7 @@ mod tests {
             &file_storage_op,
             &stats_mx, 
             &database_mx, 
-            &mut payload)).unwrap();
+            payload)).unwrap();
         
         // make insert 'file' assertions
         {
@@ -183,7 +183,7 @@ mod tests {
         let msg = "foo";
         let msg_len = msg.len() as u64;
         let payload_str = format!("priority=1?{}", msg);
-        let mut payload = fake_payload!(payload_str);
+        let payload = fake_payload!(payload_str);
 
         // insert 2 msgs
         block_on(add_handle(
@@ -191,15 +191,15 @@ mod tests {
             &file_storage_op,
             &stats_mx, 
             &database_mx, 
-            &mut payload)).unwrap();
+            payload)).unwrap();
         
-        let mut payload = fake_payload!(payload_str);
+        let payload = fake_payload!(payload_str);
         block_on(add_handle(
             &store_mx, 
             &file_storage_op,
             &stats_mx, 
             &database_mx, 
-            &mut payload)).unwrap();
+            payload)).unwrap();
 
         // make pruned assertions
         {
@@ -224,13 +224,13 @@ mod tests {
 
         {
             // should reject file storage not being configured
-            let mut payload = fake_payload!("priority=1&saveToFile=true&bytesizeoverhead=1?my-msg");
+            let payload = fake_payload!("priority=1&saveToFile=true&bytesizeoverhead=1?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &None,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::FileStorageNotConfigured, msg_err)
             } else {
@@ -240,13 +240,13 @@ mod tests {
 
         {
             // should reject for invalid bytesizeOverride
-            let mut payload = fake_payload!("priority=1&saveToFile=true&bytesizeOverride=true?my-msg");
+            let payload = fake_payload!("priority=1&saveToFile=true&bytesizeOverride=true?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::InvalidBytesizeOverride, msg_err)
             } else {
@@ -256,13 +256,13 @@ mod tests {
 
         {
             // should reject for invalid priority
-            let mut payload = fake_payload!("priority=mypriority?my-msg");
+            let payload = fake_payload!("priority=mypriority?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::InvalidPriority, msg_err)
             } else {
@@ -272,13 +272,13 @@ mod tests {
 
         {
             // should reject for missing bytesizeOverride
-            let mut payload = fake_payload!("priority=1&saveToFile=true?my-msg");
+            let payload = fake_payload!("priority=1&saveToFile=true?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MissingBytesizeOverride, msg_err)
             } else {
@@ -288,13 +288,13 @@ mod tests {
 
         // {
         //     // should reject for missing headers
-        //     let mut payload = fake_payload!("my-msg");
+        //     let payload = fake_payload!("my-msg");
         //     let add_err = block_on(add_handle(
         //         &store_mx, 
         //         &file_storage_op,
         //         &stats_mx, 
         //         &database_mx, 
-        //         &mut payload)).err().unwrap();
+        //         payload)).err().unwrap();
         //     if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
         //         assert_eq!(MsgError::MissingHeaders, msg_err)
         //     } else {
@@ -304,13 +304,13 @@ mod tests {
 
         {
             // should reject for missing priority
-            let mut payload = fake_payload!("myparam=4?my-msg");
+            let payload = fake_payload!("myparam=4?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MissingPriority, msg_err)
             } else {
@@ -320,13 +320,13 @@ mod tests {
 
         {
             // should reject msg for malformed headers
-            let mut payload = fake_payload!("myheaders?my-msg");
+            let payload = fake_payload!("myheaders?my-msg");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MalformedHeaders, msg_err)
             } else {
@@ -341,13 +341,13 @@ mod tests {
                 Mutex::new(store)
             };
             // should reject msg for exceeding the group max            
-            let mut payload = fake_payload!("priority=1?for bar");
+            let payload = fake_payload!("priority=1?for bar");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MsgExceedesGroupMax, msg_err)
             } else {
@@ -363,13 +363,13 @@ mod tests {
                 Mutex::new(store)
             };
             // should reject msg for exceeding the group max
-            let mut payload = fake_payload!("priority=1?for bar");
+            let payload = fake_payload!("priority=1?for bar");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MsgExceedesStoreMax, msg_err)
             } else {
@@ -385,20 +385,20 @@ mod tests {
                 Mutex::new(store)
             };
             // should reject msg for exceeding the group max
-            let mut payload = fake_payload!("priority=2?foo");
+            let payload = fake_payload!("priority=2?foo");
             block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).unwrap();
-            let mut payload = fake_payload!("priority=1?foo");
+                payload)).unwrap();
+            let payload = fake_payload!("priority=1?foo");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             if let AddErrorTy::MsgError(msg_err) = add_err.err_ty {
                 assert_eq!(MsgError::MsgLacksPriority, msg_err)
             } else {
@@ -414,13 +414,13 @@ mod tests {
                 Mutex::new(store)
             };
             // should reject msg for exceeding the group max
-            let mut payload = fake_payload!("priority=1?for bar");
+            let payload = fake_payload!("priority=1?for bar");
             let add_err = block_on(add_handle(
                 &store_mx, 
                 &file_storage_op,
                 &stats_mx, 
                 &database_mx, 
-                &mut payload)).err().unwrap();
+                payload)).err().unwrap();
             assert!(add_err.to_string().contains("ADD_MSG_ERROR: (MSG_ERROR: MsgExceedesStoreMax). "))
         }
 

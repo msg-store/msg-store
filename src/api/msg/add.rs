@@ -116,7 +116,7 @@ pub async fn handle<T: Chunky>(
     file_storage: &Option<Mutex<FileStorage>>,
     stats: &Mutex<Stats>,
     database: &Mutex<Database>,
-    payload: &mut T) -> Result<Arc<Uuid>, AddError> {
+    mut payload: T) -> Result<Arc<Uuid>, AddError> {
 
         let mut metadata_string = String::new();
         let mut msg_chunk = BytesMut::new();
