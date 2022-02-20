@@ -3,7 +3,7 @@ pub mod get;
 pub mod rm;
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use bytes::Bytes;
     use crate::core::store::{Store, StoreDefaults, GroupDefaults};
     use crate::api::file_storage::FileStorage;
@@ -19,9 +19,9 @@ mod tests {
     use super::rm::handle as rm_handle;
     use tempdir::TempDir;
 
-    struct FakePayload {
-        msg: Bytes,
-        done: bool
+    pub struct FakePayload {
+        pub msg: Bytes,
+        pub done: bool
     }
     impl Stream for FakePayload {
         type Item = Result<Bytes, &'static str>;
@@ -35,6 +35,8 @@ mod tests {
         }
     }
     impl Chunky for FakePayload {}
+
+    #[macro_export]
     macro_rules! fake_payload {
         ($msg:expr) => {
             {
