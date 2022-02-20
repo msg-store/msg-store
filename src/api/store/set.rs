@@ -1,53 +1,130 @@
-use crate::core::store::{Store, StoreDefaults};
+use crate::core::store::{Store, StoreDefaults, StoreError};
+use crate::database::DatabaseError;
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use crate::api::lock;
-use crate::api::config::{StoreConfig, update_config};
-use crate::api::error_codes::{self, log_err};
-use crate::api::file_storage::{FileStorage, rm_from_file_storage};
+use crate::api::Database;
+use crate::api::config::{StoreConfig, update_config, ConfigError};
+use crate::api::file_storage::{FileStorage, rm_from_file_storage, FileStorageError};
 use crate::api::stats::Stats;
+
+#[derive(Debug)]
+pub enum ErrTy {
+    ConfigError(ConfigError),
+    DatabaseError(DatabaseError),
+    FileStorageError(FileStorageError),
+    StoreError(StoreError),
+    LockingError
+}
+impl Display for ErrTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConfigError(err) => write!(f, "({})", err),
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
+            Self::LockingError => write!(f, "{:#?}", self)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ApiError {
+    pub err_ty: ErrTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(msg) = &self.msg {
+            write!(f, "SET_STORE_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
+        } else {
+            write!(f, "SET_STORE_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
+        }
+    }   
+}
+
+macro_rules! api_error {
+    ($err_ty:expr) => {
+        ApiError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        ApiError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
 
 pub fn handle(
     store_mutex: &Mutex<Store>,
+    database_mx: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
     store_config_mutex: &Mutex<StoreConfig>,
     store_config_path_option: &Option<PathBuf>,
     max_byte_size: Option<u64>
-) -> Result<(), &'static str> {    
+) -> Result<(), ApiError> {
     let (prune_count, pruned_uuids) = {
-        let mut store = lock(store_mutex)?;        
+        let mut store = match store_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;        
         store.max_byte_size = max_byte_size;
         let defaults = StoreDefaults {
             max_byte_size,
         };
         match store.update_store_defaults(&defaults) {
-            Ok((_bytes_removed, _groups_removed, msgs_removed)) => (msgs_removed.len() as u64, msgs_removed),
-            Err(error) => {
-                log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
-                return Err(error_codes::STORE_ERROR)
+            Ok((_bytes_removed, _groups_removed, msgs_removed)) => Ok((msgs_removed.len() as u64, msgs_removed)),
+            Err(err) => Err(api_error!(ErrTy::StoreError(err)))
+        }
+    }?;
+    {
+        let mut database = match database_mx.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
+        for uuid in &pruned_uuids {
+            if let Err(err) = database.del(uuid.clone()) {
+                return Err(api_error!(ErrTy::DatabaseError(err)))
             }
         }
-    };
+    }
     if let Some(file_storage_mutex) = file_storage_option {
-        let mut file_storage = lock(&file_storage_mutex)?;
+        let mut file_storage = match file_storage_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         for uuid in pruned_uuids {
-            if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                // log_err(&error.to_string(), file!(), line!(), "");
-                return Err("FS ERROR")
+            if let Err(err) = rm_from_file_storage(&mut file_storage, &uuid) {
+                return Err(api_error!(ErrTy::FileStorageError(err)))
             }
         }
     }
     {
-        let mut stats = lock(stats_mutex)?;
+        let mut stats = match stats_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         stats.pruned += prune_count;
     }
     {
-        let mut config = lock(store_config_mutex)?;
+        let mut config = match store_config_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         config.max_byte_size = max_byte_size;
-        if let Err(error) = update_config(&mut config, store_config_path_option) {
-            log_err(error_codes::COULD_NOT_UPDATE_CONFIGURATION, file!(), line!(), error.to_string());
-            return Err(error_codes::COULD_NOT_UPDATE_CONFIGURATION)
+        if let Err(err) = update_config(&mut config, store_config_path_option) {
+            return Err(api_error!(ErrTy::ConfigError(err)))
         }
     }
     Ok(())

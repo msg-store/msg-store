@@ -1,12 +1,70 @@
-use crate::api::config::{update_config, GroupConfig, StoreConfig};
-use crate::core::store::{GroupDefaults, Store};
-use crate::api::{lock, Database};
-use crate::api::error_codes;
-use crate::api::file_storage::{rm_from_file_storage, FileStorage};
+use crate::api::config::{update_config, GroupConfig, StoreConfig, ConfigError};
+use crate::core::store::{GroupDefaults, Store, StoreError};
+use crate::database::DatabaseError;
+use crate::api::Database;
+use crate::api::file_storage::{rm_from_file_storage, FileStorage, FileStorageError};
 use crate::api::stats::Stats;
 use std::borrow::BorrowMut;
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::sync::Mutex;
+
+#[derive(Debug)]
+pub enum ErrTy {
+    ConfigError(ConfigError),
+    DatabaseError(DatabaseError),
+    FileStorageError(FileStorageError),
+    StoreError(StoreError),
+    LockingError
+}
+impl Display for ErrTy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConfigError(err) => write!(f, "({})", err),
+            Self::DatabaseError(err) => write!(f, "({})", err),
+            Self::FileStorageError(err) => write!(f, "({})", err),
+            Self::StoreError(err) => write!(f, "({})", err),
+            Self::LockingError => write!(f, "{:#?}", self)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ApiError {
+    pub err_ty: ErrTy,
+    pub file: &'static str,
+    pub line: u32,
+    pub msg: Option<String>
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(msg) = &self.msg {
+            write!(f, "SET_GROUP_DEFAULTS_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
+        } else {
+            write!(f, "SET_GROUP_DEFAULTS_ERROR: {}. file: {}, line: {}.", self.err_ty, self.file, self.line)
+        }
+    }   
+}
+
+macro_rules! api_error {
+    ($err_ty:expr) => {
+        ApiError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: None
+        }
+    };
+    ($err_ty:expr, $msg:expr) => {
+        ApiError {
+            err_ty: $err_ty,
+            file: file!(),
+            line: line!(),
+            msg: Some($msg.to_string())
+        }
+    };
+}
 
 pub fn handle(
     store_mutex: &Mutex<Store>,
@@ -17,38 +75,45 @@ pub fn handle(
     store_configuration_path_option: &Option<PathBuf>,
     priority: u32,
     max_byte_size_option: Option<u64>
-) -> Result<(), &'static str> {
+) -> Result<(), ApiError> {
     let defaults = GroupDefaults {
         max_byte_size: max_byte_size_option,
     };
     let (pruned_count, msgs_removed) = {
-        let mut store = lock(store_mutex)?;
+        let mut store = match store_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         match store.update_group_defaults(priority, &defaults) {
-            Ok((_bytes_removed, msgs_removed)) => (msgs_removed.len() as u64, msgs_removed),
-            Err(error) => {
-                error_codes::log_err(error_codes::STORE_ERROR, file!(), line!(), error.to_string());
-                return Err(error_codes::STORE_ERROR)
-            }
+            Ok((_bytes_removed, msgs_removed)) => Ok((msgs_removed.len() as u64, msgs_removed)),
+            Err(err) => Err(api_error!(ErrTy::StoreError(err)))
         }
-    };
+    }?;
     for uuid in msgs_removed.into_iter() {
         {
-            let mut db = lock(database_mutex)?;
-            if let Err(error) = db.del(uuid.clone()) {
-                error_codes::log_err(error_codes::DATABASE_ERROR, file!(), line!(), error.to_string());
-                return Err(error_codes::DATABASE_ERROR)
+            let mut db = match database_mutex.lock() {
+                Ok(gaurd) => Ok(gaurd),
+                Err(err) => Err(api_error!(ErrTy::LockingError, err))
+            }?;
+            if let Err(err) = db.del(uuid.clone()) {
+                return Err(api_error!(ErrTy::DatabaseError(err)))
             }
         }
         if let Some(file_storage_mutex) = file_storage_option {
-            let mut file_storage = lock(file_storage_mutex)?;
-            if let Err(error_code) = rm_from_file_storage(&mut file_storage, &uuid) {
-                // error_codes::log_err(&error_code.to_string(), file!(), line!(), "");
-                return Err("FS ERROR")
+            let mut file_storage = match file_storage_mutex.lock() {
+                Ok(gaurd) => Ok(gaurd),
+                Err(err) => Err(api_error!(ErrTy::LockingError, err))
+            }?;
+            if let Err(err) = rm_from_file_storage(&mut file_storage, &uuid) {
+                return Err(api_error!(ErrTy::FileStorageError(err)))
             }
         }
     }
     {
-        let mut stats = lock(stats_mutex)?;
+        let mut stats = match stats_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         stats.pruned += pruned_count;
     }
     let mk_group_config = || -> GroupConfig {
@@ -58,7 +123,10 @@ pub fn handle(
         }
     };
     {
-        let mut config = lock(store_configuration_mutex)?;
+        let mut config = match store_configuration_mutex.lock() {
+            Ok(gaurd) => Ok(gaurd),
+            Err(err) => Err(api_error!(ErrTy::LockingError, err))
+        }?;
         if let Some(groups) = config.groups.borrow_mut() {
             let mut group_index: Option<usize> = None;
             for i in 0..groups.len() {
@@ -86,9 +154,8 @@ pub fn handle(
         } else {
             config.groups = Some(vec![mk_group_config()]);
         }
-        if let Err(error) = update_config(&config, store_configuration_path_option) {
-            error_codes::log_err(error_codes::COULD_NOT_UPDATE_CONFIGURATION, file!(), line!(), error);
-            return Err(error_codes::COULD_NOT_UPDATE_CONFIGURATION)
+        if let Err(err) = update_config(&config, store_configuration_path_option) {
+            return Err(api_error!(ErrTy::ConfigError(err)))
         }
     }    
     Ok(())
