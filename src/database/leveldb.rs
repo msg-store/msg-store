@@ -12,6 +12,7 @@ use leveldb::options::{
     WriteOptions
 };
 use serde::{Serialize, Deserialize};
+use std::fs::create_dir_all;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -55,6 +56,12 @@ pub struct Leveldb {
 
 impl Leveldb {
     pub fn new(dir: &Path) -> Result<Leveldb, DatabaseError> {
+
+        if !dir.exists() {
+            if let Err(err) = create_dir_all(&dir) {
+                return Err(leveldb_error!(DatabaseErrorTy::CouldNotOpenDatabase, err))
+            }
+        }
 
         let mut msgs_path = dir.to_path_buf();
         msgs_path.push("msgs");
