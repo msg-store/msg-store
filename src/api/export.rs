@@ -165,7 +165,7 @@ pub fn handle(
             }?;
 
             for _ in 0..max_count {
-                let store = match store_mutex.lock() {
+                let mut store = match store_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
                     Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
@@ -204,7 +204,7 @@ pub fn handle(
                 // add the data to the leveldb backup
                 // if it errors then copy the destination file back to the source
                 // dont exit until on error handling has finished
-                if let Err(error) = leveldb_backup.add(uuid, msg, msg_byte_size) {
+                if let Err(error) = leveldb_backup.add(uuid.clone(), msg, msg_byte_size) {
                     if let Err(error) = copy(&dest_file_path, &src_file_path) {
                         return Err(api_error!(ErrTy::CouldNotReinsertFileAfterError, error));
                     };
@@ -213,12 +213,17 @@ pub fn handle(
                     }
                     return Err(api_error!(ErrTy::CouldNotAddFileToBackup(error)));
                 }
+
+                if let Err(err) = store.del(uuid) {
+                    return Err(api_error!(ErrTy::StoreError(err)));
+                }
+
                 // update deleted count
                 deleted_count += 1;    
             }
         } else {
             for _ in 0..max_count {
-                let store = match store_mutex.lock() {
+                let mut store = match store_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
                     Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
@@ -243,9 +248,14 @@ pub fn handle(
                 // add the data to the leveldb backup
                 // if it errors then copy the destination file back to the source
                 // dont exit until on error handling has finished
-                if let Err(error) = leveldb_backup.add(uuid, msg, msg_byte_size) {
+                if let Err(error) = leveldb_backup.add(uuid.clone(), msg, msg_byte_size) {
                     return Err(api_error!(ErrTy::DatabaseError(error)));
                 }
+
+                if let Err(err) = store.del(uuid) {
+                    return Err(api_error!(ErrTy::StoreError(err)));
+                }
+
                 // update deleted count
                 deleted_count += 1;    
             }
