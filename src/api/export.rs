@@ -214,8 +214,11 @@ pub fn handle(
                     return Err(api_error!(ErrTy::CouldNotAddFileToBackup(error)));
                 }
 
-                if let Err(err) = store.del(uuid) {
+                if let Err(err) = store.del(uuid.clone()) {
                     return Err(api_error!(ErrTy::StoreError(err)));
+                }
+                if let Err(err) = database.del(uuid.clone()) {
+                    return Err(api_error!(ErrTy::DatabaseError(err)))
                 }
 
                 // update deleted count
@@ -252,8 +255,11 @@ pub fn handle(
                     return Err(api_error!(ErrTy::DatabaseError(error)));
                 }
 
-                if let Err(err) = store.del(uuid) {
+                if let Err(err) = store.del(uuid.clone()) {
                     return Err(api_error!(ErrTy::StoreError(err)));
+                }
+                if let Err(err) = database.del(uuid.clone()) {
+                    return Err(api_error!(ErrTy::DatabaseError(err)))
                 }
 
                 // update deleted count
