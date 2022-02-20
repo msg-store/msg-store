@@ -1,10 +1,10 @@
 [workspace]
 members = [
     "msg-store",
-    "msg-store-uuid",
+    "msg_store_uuid",
     "http-server-leveldb-filestorage",
     "msg_store_database_plugin",
     "msg_store_database_in_memory_plugin",
     "msg_store_database_leveldb_plugin",
-    "server-api"
+    "msg_store_server_api"
 ]

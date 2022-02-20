@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test --workspaces"
+    "test": "cargo build && npm run test --workspaces",
+    "test:release" : "cargo build --release && npm run test --workspaces"
   },
   "repository": {
     "type": "git",

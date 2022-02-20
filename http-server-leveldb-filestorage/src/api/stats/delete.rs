@@ -1,6 +1,6 @@
 use actix_web::{web::Data, HttpResponse};
 use crate::AppData;
-use server_api::stats::rm::handle;
+use msg_store_server_api::stats::rm::handle;
 use log::{error, info};
 use std::process::exit;
 

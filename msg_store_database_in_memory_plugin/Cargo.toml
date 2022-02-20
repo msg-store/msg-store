@@ -10,4 +10,4 @@ bincode = { version = "1.3.3" }
 bytes = "1.1.0"
 msg_store_database_plugin = { path = "../msg_store_database_plugin" }
 msg-store = { path = "../msg-store" }
-msg-store-uuid = { path = "../msg-store-uuid" }
+msg_store_uuid = { path = "../msg_store_uuid" }

@@ -2,7 +2,7 @@ use actix_web::web::{ Data, Payload };
 use actix_web::{HttpResponse};
 use bytes::Bytes;
 use crate::AppData;
-use server_api::msg::add::{handle, Chunky, AddErrorTy, MsgError};
+use msg_store_server_api::msg::add::{handle, Chunky, AddErrorTy, MsgError};
 use futures::{Stream, StreamExt};
 use log::{error, info};
 use serde::{Deserialize, Serialize};

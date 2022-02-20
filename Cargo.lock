@@ -1015,13 +1015,13 @@ dependencies = [
  "futures",
  "log",
  "msg-store",
- "msg-store-uuid",
  "msg_store_database_in_memory_plugin",
  "msg_store_database_leveldb_plugin",
  "msg_store_database_plugin",
+ "msg_store_server_api",
+ "msg_store_uuid",
  "serde",
  "serde_json",
- "server-api",
 ]
 
 [[package]]
@@ -1269,12 +1269,8 @@ dependencies = [
 name = "msg-store"
 version = "0.8.0"
 dependencies = [
- "msg-store-uuid",
+ "msg_store_uuid",
 ]
-
-[[package]]
-name = "msg-store-uuid"
-version = "0.1.0"
 
 [[package]]
 name = "msg_store_database_in_memory_plugin"
@@ -1283,8 +1279,8 @@ dependencies = [
  "bincode",
  "bytes 1.1.0",
  "msg-store",
- "msg-store-uuid",
  "msg_store_database_plugin",
+ "msg_store_uuid",
 ]
 
 [[package]]
@@ -1296,8 +1292,8 @@ dependencies = [
  "db-key",
  "leveldb",
  "msg-store",
- "msg-store-uuid",
  "msg_store_database_plugin",
+ "msg_store_uuid",
  "serde",
 ]
 
@@ -1308,8 +1304,30 @@ dependencies = [
  "bincode",
  "bytes 1.1.0",
  "msg-store",
- "msg-store-uuid",
+ "msg_store_uuid",
 ]
+
+[[package]]
+name = "msg_store_server_api"
+version = "0.1.0"
+dependencies = [
+ "bytes 1.1.0",
+ "futures",
+ "log",
+ "msg-store",
+ "msg_store_database_in_memory_plugin",
+ "msg_store_database_leveldb_plugin",
+ "msg_store_database_plugin",
+ "msg_store_uuid",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tempdir",
+]
+
+[[package]]
+name = "msg_store_uuid"
+version = "0.1.0"
 
 [[package]]
 name = "net2"
@@ -1743,24 +1761,6 @@ dependencies = [
  "itoa 1.0.1",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "server-api"
-version = "0.1.0"
-dependencies = [
- "bytes 1.1.0",
- "futures",
- "log",
- "msg-store",
- "msg-store-uuid",
- "msg_store_database_in_memory_plugin",
- "msg_store_database_leveldb_plugin",
- "msg_store_database_plugin",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tempdir",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@ use actix_web::{
 };
 use crate::AppData;
 use log::{error, info};
-use server_api::{
+use msg_store_server_api::{
     group::rm::handle
 };
 use serde::{Deserialize, Serialize};

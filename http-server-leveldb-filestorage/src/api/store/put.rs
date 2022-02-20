@@ -1,7 +1,7 @@
 use actix_web::HttpResponse;
 use actix_web::web::{Data, Json};
 use crate::AppData;
-use server_api::store::set::handle;
+use msg_store_server_api::store::set::handle;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::json;

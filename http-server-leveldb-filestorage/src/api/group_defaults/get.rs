@@ -1,7 +1,7 @@
 use actix_web::HttpResponse;
 use actix_web::web::{Data, Query};
 use crate::AppData;
-use server_api::group_defaults::get::handle;
+use msg_store_server_api::group_defaults::get::handle;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::process::exit;

@@ -7,4 +7,4 @@ edition = "2018"
 license = "MIT"
 
 [dependencies]
-msg-store-uuid = { path = "../msg-store-uuid" }
+msg_store_uuid = { path = "../msg_store_uuid" }

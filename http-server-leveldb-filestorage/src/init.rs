@@ -4,15 +4,15 @@ use msg_store::{Store, StoreDefaults, GroupDefaults, StoreError};
 use msg_store_database_plugin::{Db, DatabaseError};
 use msg_store_database_in_memory_plugin::MemDb;
 use msg_store_database_leveldb_plugin::Leveldb;
-use server_api::file_storage::{
+use msg_store_server_api::file_storage::{
     FileStorage,
     FileStorageError,
     read_file_storage_direcotory,
     discover_files,
     rm_from_file_storage
 };
-use server_api::stats::Stats;
-use server_api::config::{StoreConfig, ConfigError};
+use msg_store_server_api::stats::Stats;
+use msg_store_server_api::config::{StoreConfig, ConfigError};
 use std::fmt::Display;
 use std::fs::create_dir_all;
 use std::path::PathBuf;

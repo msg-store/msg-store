@@ -4,7 +4,7 @@ use actix_web::{
     HttpResponse,
 };
 use log::{error, info};
-use server_api::group::get;
+use msg_store_server_api::group::get;
 use serde::{Deserialize, Serialize};
 use std::process::exit;
 

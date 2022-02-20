@@ -4,9 +4,9 @@ use actix_web::{
     App, HttpServer,
 };
 use log::error;
-use server_api::config::StoreConfig;
-use server_api::file_storage::FileStorage;
-use server_api::stats::Stats;
+use msg_store_server_api::config::StoreConfig;
+use msg_store_server_api::file_storage::FileStorage;
+use msg_store_server_api::stats::Stats;
 use msg_store::Store;
 use msg_store_database_plugin::Db;
 use env_logger::{Builder, Target};

@@ -2,7 +2,7 @@ use actix_web::web::{Data, Query};
 use actix_web::HttpResponse;
 use crate::AppData;
 use log::{error, info};
-use server_api::msg::rm::handle;
+use msg_store_server_api::msg::rm::handle;
 use msg_store_uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use std::process::exit;

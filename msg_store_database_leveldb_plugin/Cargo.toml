@@ -12,5 +12,5 @@ db-key = { version = "0.0.5" }
 leveldb = { version = "0.8.6" }
 msg-store = { path = "../msg-store" }
 msg_store_database_plugin = { path = "../msg_store_database_plugin" }
-msg-store-uuid = { path = "../msg-store-uuid" }
+msg_store_uuid = { path = "../msg_store_uuid" }
 serde = { version = "1.0", features = ["derive"] }
