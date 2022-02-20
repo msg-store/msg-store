@@ -271,3 +271,215 @@ pub fn handle(
     }    
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use crate::fake_payload;
+    use crate::api::file_storage::FileStorage;
+    use crate::api::msg::add::handle as add_handle;
+    use crate::api::msg::tests::FakePayload;
+    use crate::api::stats::Stats;
+    use crate::core::store::Store;
+    use crate::database::Db;
+    use crate::database::leveldb::Leveldb;
+    use futures::executor::block_on;
+    use rand::prelude::random;
+    use std::convert::AsRef;
+    use std::fs::{read_to_string, remove_dir_all};
+    use std::ops::Drop;
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+    
+    use super::handle;
+    
+    use tempdir::TempDir;
+
+    #[derive(Debug)]
+    pub struct LazyTempDir {
+        path: PathBuf
+    }
+    impl LazyTempDir {
+        pub fn new(prefix: &str) -> LazyTempDir {
+            let name: u128 = random();
+            let name_string = format!("/tmp/{}-{}", prefix, name);
+            LazyTempDir { path: PathBuf::from(name_string) }
+        }
+        pub fn path(&self) -> &Path {
+            self.as_ref()
+        }
+    }
+    impl AsRef<Path> for LazyTempDir {
+        fn as_ref(&self) -> &Path {
+            &self.path
+        }
+    }
+    impl Drop for LazyTempDir {
+        fn drop(&mut self) {
+            if self.path.exists() {
+                remove_dir_all(&self.path).unwrap()
+            }
+        }
+    }
+
+    #[test]
+    fn should_export_file_based_msgs() {
+        
+        let tmp_dir = TempDir::new("should_export_msgs").unwrap();
+        let tmp_export_dir = LazyTempDir::new("should_export_msgs_export");
+        let level_db_path = {
+            let mut level_db_path = tmp_dir.path().to_path_buf();
+            level_db_path.push("leveldb");
+            level_db_path
+        };
+        let file_storage_path = {
+            let mut file_storage_path = tmp_dir.path().to_path_buf();
+            file_storage_path.push("file-storage");
+            file_storage_path
+        };
+        let exported_level_db_path = {
+            let mut level_db_path = tmp_export_dir.path().to_path_buf();
+            level_db_path.push("leveldb");
+            level_db_path
+        };
+        let exported_file_storage_path = {
+            let mut file_storage_path = tmp_export_dir.path().to_path_buf();
+            file_storage_path.push("file-storage");
+            file_storage_path
+        };
+        let store_mx = Mutex::new(Store::new(None).unwrap());
+        let database_mx: Mutex<Box<dyn Db>> = Mutex::new(Box::new(Leveldb::new(&level_db_path).unwrap()));
+        let stats_mx = Mutex::new(Stats::new());
+        
+        
+        let file_storage_op = Some(Mutex::new(FileStorage::new(&file_storage_path).unwrap()));
+
+        // add a message to the store and database using the add msg api
+        let msg = "Hello, world";
+        let msg_len = msg.len() as u64;
+        let payload_str = format!("priority=1&saveToFile=true&bytesizeOverride={}&fileName=my-file?{}", msg_len, msg);
+        let payload = fake_payload!(payload_str);
+        let uuid = block_on(add_handle(&store_mx, &file_storage_op, &stats_mx, &database_mx, payload)).unwrap();
+        
+        let msg_headers = {
+            database_mx.lock().unwrap().get(uuid.clone()).unwrap()
+        };
+
+        handle(
+            &store_mx, 
+            &database_mx, 
+            &file_storage_op, 
+            &stats_mx, 
+            tmp_export_dir.path()).unwrap();
+
+        // make assertions
+        {
+            // the store should be empty
+            let store = store_mx.lock().unwrap();
+            assert!(store.byte_size == 0);
+            assert!(store.id_to_group_map.len() == 0);
+            
+            // the database should be empty
+            let mut database = database_mx.lock().unwrap();
+            assert!(database.fetch().unwrap().len() == 0);
+
+            // the stats object should have deleted 1
+            let stats = stats_mx.lock().unwrap();
+            assert!(stats.deleted == 1);
+
+            // there should be no file in the original directory
+            let file_path = {
+                let mut file_path = file_storage_path.to_path_buf();
+                file_path.push(uuid.to_string());
+                file_path
+            };
+            assert!(!file_path.exists());
+
+            // there should be a file in the output directory
+            let file_path = {
+                let mut file_path = exported_file_storage_path.to_path_buf();
+                file_path.push(uuid.to_string());
+                file_path
+            };
+            assert!(file_path.exists());
+
+            // there should be a msg in the database
+            let mut database = Leveldb::new(&exported_level_db_path).unwrap();
+            assert!(database.fetch().unwrap().len() == 1);
+
+            // the headers should match
+            assert!(database.get(uuid.clone()).unwrap() == msg_headers);
+
+            // the file contents should match
+            assert!(read_to_string(file_path).unwrap() == msg);
+
+        }
+
+    }
+
+    #[test]
+    fn should_export_msgs() {
+        
+        let tmp_dir = TempDir::new("should_export_msgs").unwrap();
+        let tmp_export_dir = LazyTempDir::new("should_export_msgs_export");
+        let level_db_path = {
+            let mut level_db_path = tmp_dir.path().to_path_buf();
+            level_db_path.push("leveldb");
+            level_db_path
+        };
+
+        let exported_level_db_path = {
+            let mut level_db_path = tmp_export_dir.path().to_path_buf();
+            level_db_path.push("leveldb");
+            level_db_path
+        };
+
+        let store_mx = Mutex::new(Store::new(None).unwrap());
+        let database_mx: Mutex<Box<dyn Db>> = Mutex::new(Box::new(Leveldb::new(&level_db_path).unwrap()));
+        let stats_mx = Mutex::new(Stats::new());
+        
+        
+        // add a message to the store and database using the add msg api
+        let msg = "Hello, world";
+        let payload_str = format!("priority=1?{}", msg);
+        let payload = fake_payload!(payload_str);
+        let uuid = block_on(add_handle(&store_mx, &None, &stats_mx, &database_mx, payload)).unwrap();
+        
+        let inserted_msg = {
+            database_mx.lock().unwrap().get(uuid.clone()).unwrap()
+        };
+
+        handle(
+            &store_mx, 
+            &database_mx, 
+            &None, 
+            &stats_mx, 
+            tmp_export_dir.path()).unwrap();
+
+        // make assertions
+        {
+            // the store should be empty
+            let store = store_mx.lock().unwrap();
+            assert!(store.byte_size == 0);
+            assert!(store.id_to_group_map.len() == 0);
+            
+            // the database should be empty
+            let mut database = database_mx.lock().unwrap();
+            assert!(database.fetch().unwrap().len() == 0);
+
+            // the stats object should have deleted 1
+            let stats = stats_mx.lock().unwrap();
+            assert!(stats.deleted == 1);
+
+            // there should be a msg in the database
+            let mut database = Leveldb::new(&exported_level_db_path).unwrap();
+            assert!(database.fetch().unwrap().len() == 1);
+
+            // the msg should match
+            assert!(database.get(uuid.clone()).unwrap() == inserted_msg);
+            assert!(database.get(uuid.clone()).unwrap() == msg);
+
+        }
+
+    }
+}
