@@ -116,7 +116,7 @@ pub struct StoredPacket {
     pub msg: String,
 }
 
-pub fn handle(
+pub async fn handle(
     store_mutex: &Mutex<Store>,
     database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
@@ -365,12 +365,12 @@ mod tests {
             database_mx.lock().unwrap().get(uuid.clone()).unwrap()
         };
 
-        handle(
+        block_on(handle(
             &store_mx, 
             &database_mx, 
             &file_storage_op, 
             &stats_mx, 
-            tmp_export_dir.path()).unwrap();
+            tmp_export_dir.path())).unwrap();
 
         // make assertions
         {
@@ -449,12 +449,12 @@ mod tests {
             database_mx.lock().unwrap().get(uuid.clone()).unwrap()
         };
 
-        handle(
+        block_on(handle(
             &store_mx, 
             &database_mx, 
             &None, 
             &stats_mx, 
-            tmp_export_dir.path()).unwrap();
+            tmp_export_dir.path())).unwrap();
 
         // make assertions
         {
