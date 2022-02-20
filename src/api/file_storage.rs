@@ -91,11 +91,16 @@ pub struct FileStorage {
     pub path: PathBuf
 }
 impl FileStorage {
-    pub fn new(storage_path: &Path) -> FileStorage {
-        FileStorage {
+    pub fn new(storage_path: &Path) -> Result<FileStorage, FileStorageError> {
+        if !storage_path.exists() {
+            if let Err(err) = create_dir_all(&storage_path) {
+                return Err(fs_error!(FileStorageErrorTy::CouldNotCreateDirectory, err))
+            }
+        }
+        Ok(FileStorage {
             index: BTreeSet::new(),
             path: storage_path.to_path_buf()
-        }
+        })
     }
 }
 

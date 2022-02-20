@@ -63,7 +63,7 @@ mod tests {
         let database_mx: Mutex<Box<dyn Db>> = Mutex::new(Box::new(MemDb::new()));
         let stats_mx = Mutex::new(Stats::new());
         let tmp_dir = TempDir::new("should_add_get_and_rm_msg").unwrap();
-        let file_storage_op = Some(Mutex::new(FileStorage::new(tmp_dir.path())));
+        let file_storage_op = Some(Mutex::new(FileStorage::new(tmp_dir.path()).unwrap()));
 
         let msg = "Hello, world";
         let msg_len = msg.len() as u64;
@@ -220,7 +220,7 @@ mod tests {
         let database_mx: Mutex<Box<dyn Db>> = Mutex::new(Box::new(MemDb::new()));
         let stats_mx = Mutex::new(Stats::new());
         let tmp_dir = TempDir::new("should_add_get_and_rm_msg").unwrap();
-        let file_storage_op = Some(Mutex::new(FileStorage::new(tmp_dir.path())));
+        let file_storage_op = Some(Mutex::new(FileStorage::new(tmp_dir.path()).unwrap()));
 
         {
             // should reject file storage not being configured
