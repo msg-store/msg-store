@@ -16,7 +16,7 @@ pub struct Info {
 }
 
 const ROUTE: &'static str = "GET /api/group";
-pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
     let include_msg_data = match info.include_msg_data {
         Some(include_msg_data) => include_msg_data,
         None => false
@@ -28,7 +28,7 @@ pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
         };
         info!("{} priority: {}, includeMsgData: {}", ROUTE, priority_string, include_msg_data);
     }
-    let result = get::handle(&data.store, info.priority, include_msg_data);
+    let result = get::handle(&data.store, info.priority, include_msg_data).await;
     match result {
         Ok(groups) => {
             info!("{} 200", ROUTE);

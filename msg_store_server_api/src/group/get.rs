@@ -76,7 +76,7 @@ pub struct Group {
     messages: Vec<Msg>,
 }
 
-pub fn handle(
+pub async fn handle(
     store_mutex: &Mutex<Store>,
     priority_option: Option<u32>,
     include_msg_data: bool

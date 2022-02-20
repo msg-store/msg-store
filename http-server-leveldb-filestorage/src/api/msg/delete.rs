@@ -13,7 +13,7 @@ pub struct Info {
 }
 
 const ROUTE: &'static str = "DEL /api/msg";
-pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
     info!("{}", ROUTE);
     let uuid = match Uuid::from_string(&info.uuid) {
         Ok(uuid) => uuid,
@@ -22,7 +22,7 @@ pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
             return HttpResponse::BadRequest().body("InvalidUUID")
         }
     };
-    match handle(&data.store,&data.db,&data.file_storage, &data.stats, uuid) {
+    match handle(&data.store,&data.db,&data.file_storage, &data.stats, uuid).await {
         Ok(_) => {
             info!("{} 200", ROUTE);
             return HttpResponse::Ok().finish()

@@ -58,7 +58,7 @@ impl Stream for ReturnBody {
 }
 
 const ROUTE: &'static str = "GET /api/msg";
-pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
     info!("{}", ROUTE);
     let uuid = if let Some(uuid_string) = &info.uuid {
         match Uuid::from_string(&uuid_string) {
@@ -83,7 +83,7 @@ pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
         &data.file_storage, 
         uuid, 
         priority, 
-        reverse) {
+        reverse).await {
         Ok(message_option) => message_option,
         Err(err) => {
             error!("{} {}", ROUTE, err);

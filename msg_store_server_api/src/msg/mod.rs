@@ -92,13 +92,13 @@ pub mod tests {
         }
 
         // get a msg string
-        let received_payload = get_handle(
+        let received_payload = block_on(get_handle(
             &store_mx, 
             &database_mx, 
             &file_storage_op, 
             Some(uuid.clone()), 
             None, 
-            false).unwrap().unwrap().b();
+            false)).unwrap().unwrap().b();
         
         // make get assertions
         {
@@ -127,13 +127,13 @@ pub mod tests {
         }
 
         // get a msg string
-        let received_payload = get_handle(
+        let received_payload = block_on(get_handle(
             &store_mx, 
             &database_mx, 
             &file_storage_op, 
             Some(uuid_stream.clone()), 
             None, 
-            false).unwrap().unwrap().a();
+            false)).unwrap().unwrap().a();
         
         // make get assertions
         {
@@ -143,17 +143,17 @@ pub mod tests {
         }
 
         // remove msgs
-        rm_handle(
+        block_on(rm_handle(
             &store_mx, 
             &database_mx, 
             &file_storage_op, 
-            &stats_mx, uuid.clone()).unwrap();
+            &stats_mx, uuid.clone())).unwrap();
 
-        rm_handle(
+            block_on(rm_handle(
             &store_mx, 
             &database_mx, 
             &file_storage_op, 
-            &stats_mx, uuid_stream.clone()).unwrap();
+            &stats_mx, uuid_stream.clone())).unwrap();
         
         // make rm assertions
         {

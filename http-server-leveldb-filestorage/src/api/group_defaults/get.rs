@@ -12,8 +12,8 @@ pub struct Info {
 }
 
 const ROUTE: &'static str = "GET /api/group-defaults";
-pub fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
-    let result = handle(&data.store, info.priority);
+pub async fn http_handle(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
+    let result = handle(&data.store, info.priority).await;
     match result {
         Ok(groups) => {
             info!("{} 200", ROUTE);

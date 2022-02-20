@@ -62,7 +62,7 @@ macro_rules! api_error {
     };
 }
 
-pub fn handle(
+pub async fn handle(
     store_mutex: &Mutex<Store>, 
     database_mutex: &Mutex<Database>, 
     file_storage_option: &Option<Mutex<FileStorage>>,

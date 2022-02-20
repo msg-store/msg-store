@@ -51,7 +51,7 @@ macro_rules! api_error {
     };
 }
 
-pub fn handle(stats_mutex: &Mutex<Stats>) -> Result<Stats, ApiError> {
+pub async fn handle(stats_mutex: &Mutex<Stats>) -> Result<Stats, ApiError> {
     let stats = {
         let stats = match stats_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),

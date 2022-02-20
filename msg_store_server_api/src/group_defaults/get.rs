@@ -60,7 +60,7 @@ pub struct GroupDefaults {
     max_byte_size: Option<u64>,
 }
 
-pub fn handle(
+pub async fn handle(
     store_mutex: &Mutex<Store>,
     priority_option: Option<u32>
 ) -> Result<Vec<GroupDefaults>, ApiError> {

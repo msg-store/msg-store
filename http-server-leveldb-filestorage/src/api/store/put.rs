@@ -21,7 +21,7 @@ impl Display for Info {
 }
 
 const ROUTE: &'static str = "PUT /api/store";
-pub fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
     info!("{} {}", ROUTE, info);
     let result = handle(
         &data.store, 
@@ -30,7 +30,7 @@ pub fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
         &data.stats, 
         &data.configuration, 
         &data.configuration_path, 
-        info.max_byte_size);
+        info.max_byte_size).await;
     if let Err(err) = result {
         error!("{} {}", ROUTE, err);
         exit(1);

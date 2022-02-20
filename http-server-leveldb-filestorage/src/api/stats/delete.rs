@@ -5,9 +5,9 @@ use log::{error, info};
 use std::process::exit;
 
 const ROUTE: &'static str = "DEL /api/stats";
-pub fn http_handle(data: Data<AppData>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>) -> HttpResponse {
     info!("{}", ROUTE);
-    match handle(&data.stats) {
+    match handle(&data.stats).await {
         Ok(stats) => {
             info!("{} 200 {}", ROUTE, stats);
             HttpResponse::Ok().json(stats)

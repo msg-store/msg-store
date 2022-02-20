@@ -25,14 +25,14 @@ impl Display for Info {
 }
 
 const ROUTE: &'static str = "PUT /api/stats";
-pub fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
     info!("{} {}", ROUTE, info);
     let add = if let Some(add) = info.add {
         add
     } else {
         false
     };
-    match handle(&data.stats, add, info.inserted, info.deleted, info.pruned) {
+    match handle(&data.stats, add, info.inserted, info.deleted, info.pruned).await {
         Ok(stats) => {
             info!("{} 200 {}", ROUTE, stats);
             HttpResponse::Ok().json(stats)

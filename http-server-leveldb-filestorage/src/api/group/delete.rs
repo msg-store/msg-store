@@ -16,13 +16,13 @@ pub struct Info {
 }
 
 const ROUTE: &'static str = "DEL /api/group";
-pub fn handle_http(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
+pub async fn handle_http(data: Data<AppData>, info: Query<Info>) -> HttpResponse {
     info!("{} priority: {}", ROUTE, info.priority);    
     if let Err(err) = handle(
         &data.store, 
         &data.db, 
         &data.file_storage, 
-        &data.stats, info.priority) {
+        &data.stats, info.priority).await {
             error!("{} {}", ROUTE, err);
             exit(1);
     }

@@ -88,7 +88,7 @@ pub fn replace_stats(stats_mutex: &Mutex<Stats>, insrt_o: Option<u64>, del_o: Op
     Ok(stats_old)
 }
 
-pub fn handle(
+pub async fn handle(
     stats_mutex: &Mutex<Stats>,
     add: bool,
     inserted: Option<u64>,

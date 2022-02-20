@@ -67,7 +67,7 @@ pub struct Info {
     priority: u32,
 }
 
-pub fn handle(
+pub async fn handle(
     store_mutex: &Mutex<Store>,
     configuration_mutex: &Mutex<StoreConfig>,
     configuration_path_option: &Option<PathBuf>, 

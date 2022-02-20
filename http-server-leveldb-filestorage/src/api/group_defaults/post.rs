@@ -14,7 +14,7 @@ pub struct Info {
 }
 
 const ROUTE: &'static str = "POST /api/group-defaults";
-pub fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
+pub async fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
     {
         let max_byte_size_string = if let Some(max_byte_size) = info.max_byte_size {
             max_byte_size.to_string()
@@ -31,7 +31,7 @@ pub fn http_handle(data: Data<AppData>, info: Json<Info>) -> HttpResponse {
         &data.configuration, 
         &data.configuration_path, 
         info.priority, 
-        info.max_byte_size);
+        info.max_byte_size).await;
     if let Err(err) = result {
         error!("{} {}", ROUTE, err);
         exit(1);

@@ -79,7 +79,7 @@ pub struct StoreData {
     group_defaults: Vec<GroupDefaults>,
 }
 
-pub fn handle(store_mutex: &Mutex<Store>) -> Result<StoreData, ApiError> {
+pub async fn handle(store_mutex: &Mutex<Store>) -> Result<StoreData, ApiError> {
     let store = match store_mutex.lock() {
         Ok(gaurd) => Ok(gaurd),
         Err(err) => Err(api_error!(ErrTy::LockingError, err))

@@ -162,7 +162,7 @@ impl Display for MsgError {
 }
 
 
-pub fn handle(
+pub async fn handle(
     store: &Mutex<Store>,
     database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
