@@ -143,10 +143,6 @@ pub fn handle(
         let mut leveldb_path = export_dir_path.to_path_buf();
         leveldb_path.push("leveldb");
 
-        if let Err(error) = create_dir_all(&leveldb_path) {
-            return Err(api_error!(ErrTy::CouldNotCreateDirectory, error))
-        }
-
         // open the leveldb instance
         let mut leveldb_backup = match Leveldb::new(&leveldb_path) {
             Ok(leveldb) => Ok(leveldb),
@@ -156,9 +152,6 @@ pub fn handle(
         if let Some(file_storage_mutex) = file_storage_option {
 
             // create file storage directory
-            if let Err(error) = create_directory(&export_dir_path) {
-                return Err(api_error!(ErrTy::FileStorageError(error)));
-            }
             let file_storage_export_directory = match create_directory(&export_dir_path) {
                 Ok(directory) => Ok(directory),
                 Err(error) => Err(api_error!(ErrTy::FileStorageError(error)))
