@@ -1,4 +1,4 @@
-use crate::api::{lock, Database};
+use crate::api::Database;
 use crate::api::file_storage::{
     FileStorage,
     FileStorageError,
@@ -16,7 +16,7 @@ use std::fs::{copy, remove_file, create_dir_all};
 use std::sync::Mutex;
 
 #[derive(Debug)]
-pub enum ExportErrorTy {
+pub enum ErrTy {
     CouldNotAddFileToBackup(DatabaseError),
     DatabaseError(DatabaseError),
     FileStorageError(FileStorageError),
@@ -27,7 +27,7 @@ pub enum ExportErrorTy {
     CouldNotRemoveFileAfterError,
     LockError
 }
-impl Display for ExportErrorTy {
+impl Display for ErrTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DatabaseError(err) => write!(f, "({})", err),
@@ -44,14 +44,14 @@ impl Display for ExportErrorTy {
 }
 
 #[derive(Debug)]
-pub struct ExportError {
-    pub err_ty: ExportErrorTy,
+pub struct ApiError {
+    pub err_ty: ErrTy,
     pub file: &'static str,
     pub line: u32,
     pub msg: Option<String>
 }
 
-impl Display for ExportError {
+impl Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(msg) = &self.msg {
             write!(f, "EXPORT_ERROR: {}. file: {}, line: {}, msg: {}", self.err_ty, self.file, self.line, msg)
@@ -61,9 +61,9 @@ impl Display for ExportError {
     }   
 }
 
-macro_rules! export_error {
+macro_rules! api_error {
     ($err_ty:expr) => {
-        ExportError {
+        ApiError {
             err_ty: $err_ty,
             file: file!(),
             line: line!(),
@@ -71,7 +71,7 @@ macro_rules! export_error {
         }
     };
     ($err_ty:expr, $msg:expr) => {
-        ExportError {
+        ApiError {
             err_ty: $err_ty,
             file: file!(),
             line: line!(),
@@ -100,10 +100,10 @@ fn get_export_destination_directory(destination_directory: &Path) -> PathBuf {
     finalized_path
 }
 
-fn create_export_directory(export_directory: &Path) -> Result<bool, ExportError> {
+fn create_export_directory(export_directory: &Path) -> Result<bool, ApiError> {
     if export_directory.exists() {
         if let Err(error) = create_dir_all(export_directory) {
-            return Err(export_error!(ExportErrorTy::CouldNotCreateDirectory, error))
+            return Err(api_error!(ErrTy::CouldNotCreateDirectory, error))
         }
         return Ok(true)
     }
@@ -122,12 +122,12 @@ pub fn handle(
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
     export_directory: &Path
-) -> Result<(), ExportError> {
+) -> Result<(), ApiError> {
 
     let max_count = {
-        let store = match lock(store_mutex) {
+        let store = match store_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),
-            Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+            Err(err) => Err(api_error!(ErrTy::LockError, err))
         }?;
         store.id_to_group_map.len()
     };
@@ -144,61 +144,61 @@ pub fn handle(
         leveldb_path.push("leveldb");
 
         if let Err(error) = create_dir_all(&leveldb_path) {
-            return Err(export_error!(ExportErrorTy::CouldNotCreateDirectory, error))
+            return Err(api_error!(ErrTy::CouldNotCreateDirectory, error))
         }
 
         // open the leveldb instance
         let mut leveldb_backup = match Leveldb::new(&leveldb_path) {
             Ok(leveldb) => Ok(leveldb),
-            Err(error) => Err(export_error!(ExportErrorTy::DatabaseError(error)))
+            Err(error) => Err(api_error!(ErrTy::DatabaseError(error)))
         }?;
 
         if let Some(file_storage_mutex) = file_storage_option {
 
             // create file storage directory
             if let Err(error) = create_directory(&export_dir_path) {
-                return Err(export_error!(ExportErrorTy::FileStorageError(error)));
+                return Err(api_error!(ErrTy::FileStorageError(error)));
             }
             let file_storage_export_directory = match create_directory(&export_dir_path) {
                 Ok(directory) => Ok(directory),
-                Err(error) => Err(export_error!(ExportErrorTy::FileStorageError(error)))
+                Err(error) => Err(api_error!(ErrTy::FileStorageError(error)))
             }?;
 
             for _ in 0..max_count {
-                let store = match lock(store_mutex) {
+                let store = match store_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
-                    Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+                    Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
-                let mut leveldb = match lock(database_mutex) {
+                let mut database = match database_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
-                    Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+                    Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
-                let mut file_storage = match lock(&file_storage_mutex) {
+                let mut file_storage = match file_storage_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
-                    Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+                    Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
                 let uuid = match store.get(None, None, false) {
                     Ok(uuid) => Ok(uuid),
-                    Err(error) => Err(export_error!(ExportErrorTy::StoreError(error)))
+                    Err(error) => Err(api_error!(ErrTy::StoreError(error)))
                 }?;
                 let uuid = match uuid {
                     Some(uuid) => uuid,
                     None => { break }
                 };
-                let msg = match leveldb.get(uuid.clone()) {
+                let msg = match database.get(uuid.clone()) {
                     Ok(msg) => Ok(msg),
-                    Err(error) => Err(export_error!(ExportErrorTy::DatabaseError(error)))
+                    Err(error) => Err(api_error!(ErrTy::DatabaseError(error)))
                 }?;
                 let msg_byte_size = msg.len() as u64;
 
                 let src_file_path = get_file_path_from_id(&file_storage.path, &uuid);
                 let dest_file_path = get_file_path_from_id(&file_storage_export_directory, &uuid);
                 if let Err(error) = copy(&src_file_path, &dest_file_path) {
-                    return Err(export_error!(ExportErrorTy::CouldNotCopyFile, error));
+                    return Err(api_error!(ErrTy::CouldNotCopyFile, error));
                 };
                 // remove the file from the index
                 if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                    return Err(export_error!(ExportErrorTy::FileStorageError(error)));
+                    return Err(api_error!(ErrTy::FileStorageError(error)));
                 }
 
                 // add the data to the leveldb backup
@@ -206,37 +206,37 @@ pub fn handle(
                 // dont exit until on error handling has finished
                 if let Err(error) = leveldb_backup.add(uuid, msg, msg_byte_size) {
                     if let Err(error) = copy(&dest_file_path, &src_file_path) {
-                        return Err(export_error!(ExportErrorTy::CouldNotReinsertFileAfterError, error));
+                        return Err(api_error!(ErrTy::CouldNotReinsertFileAfterError, error));
                     };
                     if let Err(error) = remove_file(dest_file_path) {
-                        return Err(export_error!(ExportErrorTy::CouldNotRemoveFileAfterError, error));
+                        return Err(api_error!(ErrTy::CouldNotRemoveFileAfterError, error));
                     }
-                    return Err(export_error!(ExportErrorTy::CouldNotAddFileToBackup(error)));
+                    return Err(api_error!(ErrTy::CouldNotAddFileToBackup(error)));
                 }
                 // update deleted count
                 deleted_count += 1;    
             }
         } else {
             for _ in 0..max_count {
-                let store = match lock(store_mutex) {
+                let store = match store_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
-                    Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+                    Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
-                let mut leveldb = match lock(database_mutex) {
+                let mut database = match database_mutex.lock() {
                     Ok(gaurd) => Ok(gaurd),
-                    Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+                    Err(err) => Err(api_error!(ErrTy::LockError, err))
                 }?;
                 let uuid = match store.get(None, None, false) {
                     Ok(uuid) => Ok(uuid),
-                    Err(error) => Err(export_error!(ExportErrorTy::StoreError(error)))
+                    Err(error) => Err(api_error!(ErrTy::StoreError(error)))
                 }?;
                 let uuid = match uuid {
                     Some(uuid) => uuid,
                     None => { break }
                 };
-                let msg = match leveldb.get(uuid.clone()) {
+                let msg = match database.get(uuid.clone()) {
                     Ok(msg) => Ok(msg),
-                    Err(error) => Err(export_error!(ExportErrorTy::DatabaseError(error)))
+                    Err(error) => Err(api_error!(ErrTy::DatabaseError(error)))
                 }?;                
                 let msg_byte_size = msg.len() as u64;
 
@@ -244,7 +244,7 @@ pub fn handle(
                 // if it errors then copy the destination file back to the source
                 // dont exit until on error handling has finished
                 if let Err(error) = leveldb_backup.add(uuid, msg, msg_byte_size) {
-                    return Err(export_error!(ExportErrorTy::DatabaseError(error)));
+                    return Err(api_error!(ErrTy::DatabaseError(error)));
                 }
                 // update deleted count
                 deleted_count += 1;    
@@ -254,9 +254,9 @@ pub fn handle(
     };
     // update stats
     {
-        let mut stats = match lock(stats_mutex) {
+        let mut stats = match stats_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),
-            Err(error) => Err(export_error!(ExportErrorTy::LockError, error))
+            Err(err) => Err(api_error!(ErrTy::LockError, err))
         }?;
         stats.deleted += deleted_count;
     }    
