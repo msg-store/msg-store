@@ -2,7 +2,14 @@
 name = "msg_store_uuid"
 version = "0.1.0"
 edition = "2021"
-
+authors = ["Joshua Enokson <enoksonprojects@protonmail.com>"]
+license = "MIT"
+repository = "https://github.com/msg-store/msg-store"
+readme = "README.md"
+keywords = ["msg-store"]
+description = """
+The UUID format and types used for the msg store
+"""
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
