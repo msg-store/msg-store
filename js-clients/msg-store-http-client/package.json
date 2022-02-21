@@ -4,6 +4,7 @@
   "description": "A http client for the msg-store",
   "main": "index.js",
   "type": "module",
+  "types": "index.d.ts",
   "scripts": {
     "test": "mocha tests",
     "standard": "npx standard --fix index.js"
