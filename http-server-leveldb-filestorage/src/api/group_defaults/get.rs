@@ -8,7 +8,7 @@ use std::process::exit;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Info {
-    priority: Option<u32>,
+    priority: Option<u16>,
 }
 
 const ROUTE: &'static str = "GET /api/group-defaults";

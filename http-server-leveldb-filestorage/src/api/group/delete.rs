@@ -12,7 +12,7 @@ use std::process::exit;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Info {
-    priority: u32,
+    priority: u16,
 }
 
 const ROUTE: &'static str = "DEL /api/group";

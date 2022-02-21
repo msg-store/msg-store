@@ -9,7 +9,7 @@ use std::process::exit;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
-    priority: u32,
+    priority: u16,
     max_byte_size: Option<u64>,
 }
 

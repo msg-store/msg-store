@@ -55,7 +55,7 @@ macro_rules! api_error {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
-    priority: Option<u32>,
+    priority: Option<u16>,
     include_msg_data: Option<bool>,
 }
 
@@ -69,7 +69,7 @@ pub struct Msg {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
-    priority: u32,
+    priority: u16,
     byte_size: u64,
     max_byte_size: Option<u64>,
     msg_count: u64,
@@ -78,7 +78,7 @@ pub struct Group {
 
 pub async fn handle(
     store_mutex: &Mutex<Store>,
-    priority_option: Option<u32>,
+    priority_option: Option<u16>,
     include_msg_data: bool
 ) -> Result<Vec<Group>, ApiError> {
     let store = match store_mutex.lock() {

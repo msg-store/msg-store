@@ -20,7 +20,7 @@ pub struct MsgData {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Info {
     uuid: Option<String>,
-    priority: Option<u32>,
+    priority: Option<u16>,
     reverse: Option<bool>,
 }
 

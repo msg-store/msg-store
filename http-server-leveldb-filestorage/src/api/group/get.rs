@@ -11,7 +11,7 @@ use std::process::exit;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Info {
-    priority: Option<u32>,
+    priority: Option<u16>,
     include_msg_data: Option<bool>,
 }
 

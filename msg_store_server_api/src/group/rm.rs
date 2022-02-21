@@ -67,7 +67,7 @@ pub async fn handle(
     database_mutex: &Mutex<Database>, 
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
-    priority: u32) -> Result<(), ApiError> {
+    priority: u16) -> Result<(), ApiError> {
     let list = {
         let store = match store_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),

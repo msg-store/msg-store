@@ -167,7 +167,7 @@ pub async fn handle(
     database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
     uuid_option: Option<Arc<Uuid>>,
-    priority_option: Option<u32>,
+    priority_option: Option<u16>,
     reverse_option: bool
 ) -> Result<Option<Either<ReturnBody, String>>, GetError> {
     let uuid = {

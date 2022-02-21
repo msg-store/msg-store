@@ -73,7 +73,7 @@ pub async fn handle(
     stats_mutex: &Mutex<Stats>,
     store_configuration_mutex: &Mutex<StoreConfig>,
     store_configuration_path_option: &Option<PathBuf>,
-    priority: u32,
+    priority: u16,
     max_byte_size_option: Option<u64>
 ) -> Result<(), ApiError> {
     let defaults = GroupDefaults {

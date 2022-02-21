@@ -64,14 +64,14 @@ macro_rules! api_error {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Info {
-    priority: u32,
+    priority: u16,
 }
 
 pub async fn handle(
     store_mutex: &Mutex<Store>,
     configuration_mutex: &Mutex<StoreConfig>,
     configuration_path_option: &Option<PathBuf>, 
-    priority: u32) -> Result<(), ApiError> {
+    priority: u16) -> Result<(), ApiError> {
     {
         let mut store = match store_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),

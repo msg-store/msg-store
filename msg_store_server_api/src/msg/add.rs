@@ -175,8 +175,8 @@ pub async fn handle<T: Chunky>(
             }
         }
     
-        let priority: u32 = match metadata.remove("priority") {
-            Some(priority) => match priority.parse::<u32>() {
+        let priority: u16 = match metadata.remove("priority") {
+            Some(priority) => match priority.parse::<u16>() {
                 Ok(priority) => Ok(priority),
                 Err(error) => Err(add_msg_error!(AddErrorTy::MsgError(MsgError::InvalidPriority), error))
             },

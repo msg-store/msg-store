@@ -56,13 +56,13 @@ macro_rules! api_error {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
-    pub priority: u32,
+    pub priority: u16,
     pub max_byte_size: Option<u64>,
 }
 
 pub async fn handle(
     store_mutex: &Mutex<Store>,
-    priority_option: Option<u32>
+    priority_option: Option<u16>
 ) -> Result<Vec<GroupDefaults>, ApiError> {
     let store = match store_mutex.lock() {
         Ok(gaurd) => Ok(gaurd),

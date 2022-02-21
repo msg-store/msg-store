@@ -55,14 +55,14 @@ macro_rules! api_error {
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
-    priority: u32,
+    priority: u16,
     max_byte_size: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupData {
-    priority: u32,
+    priority: u16,
     byte_size: u64,
     max_byte_size: Option<u64>,
     msg_count: usize,

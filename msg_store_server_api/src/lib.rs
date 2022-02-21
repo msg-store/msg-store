@@ -101,7 +101,7 @@ macro_rules! config_error {
 
     #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub struct GroupConfig {
-        pub priority: u32,
+        pub priority: u16,
         pub max_byte_size: Option<u64>,
     }
 

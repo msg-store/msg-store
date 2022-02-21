@@ -64,8 +64,8 @@ macro_rules! uuid_error {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Uuid {
-    pub priority: u32,
-    pub timestamp: u128,
+    pub priority: u16,
+    pub timestamp: u64,
     pub sequence: u32,
     pub node_id: u16
 }
@@ -78,13 +78,13 @@ impl Uuid {
         if split_str.len() != 4 {
             return Err(uuid_error!(UuidErrorTy::InvalidFormat));
         }
-        let priority: u32 = match split_str[0].parse() {
+        let priority: u16 = match split_str[0].parse() {
             Ok(priority) => priority,
             Err(error) => {
                 return Err(uuid_error!(UuidErrorTy::InvalidPriority, error))
             }
         };
-        let timestamp: u128 = match split_str[1].parse() {
+        let timestamp: u64 = match split_str[1].parse() {
             Ok(timestamp) => timestamp,
             Err(error) => {
                 return Err(uuid_error!(UuidErrorTy::InvalidTimestamp, error))
@@ -209,14 +209,14 @@ macro_rules! uuid_manager_error {
 
 #[derive(Debug)]
 pub struct UuidManager {
-    pub timestamp: u128,
+    pub timestamp: u64,
     pub sequence: u32,
     pub node_id: u16
 }
 impl UuidManager {
     pub fn default() -> Result<UuidManager, UuidManagerError> {
         let timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => Ok(duration.as_nanos()),
+            Ok(duration) => Ok(duration.as_secs()),
             Err(error) => Err(uuid_manager_error!(UuidManagerErrorTy::SystemTimeError, error))
         }?;
         Ok(UuidManager {
@@ -234,13 +234,13 @@ impl UuidManager {
         manager.node_id = node_id;
         Ok(manager)
     }
-    pub fn next(&mut self, priority: u32) -> Result<Arc<Uuid>, UuidManagerError> {
-        let nano = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => Ok(duration.as_nanos()),
+    pub fn next(&mut self, priority: u16) -> Result<Arc<Uuid>, UuidManagerError> {
+        let current_timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => Ok(duration.as_secs()),
             Err(error) => Err(uuid_manager_error!(UuidManagerErrorTy::SystemTimeError, error))
         }?;
-        if nano != self.timestamp {
-            self.timestamp = nano;
+        if current_timestamp != self.timestamp {
+            self.timestamp = current_timestamp;
             self.sequence = 1;
         } else {
             self.sequence += 1;
