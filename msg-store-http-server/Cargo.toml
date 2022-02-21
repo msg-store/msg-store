@@ -1,5 +1,5 @@
 [package]
-name = "http-server-leveldb-filestorage"
+name = "msg-store-http-server"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,11 +15,11 @@ clap = "2.33.3"
 dirs = "1.0.4"
 env_logger = "0.9.0"
 futures = "0.3.19"
-msg_store_database_in_memory_plugin = { path = "../msg_store_database_in_memory_plugin" }
-msg_store_database_leveldb_plugin = { path = "../msg_store_database_leveldb_plugin" }
 log = "0.4.14"
 msg-store = { path = "../msg-store" }
 msg_store_database_plugin = { path = "../msg_store_database_plugin" }
+msg_store_database_in_memory_plugin = { path = "../msg_store_database_in_memory_plugin" }
+msg_store_database_leveldb_plugin = { path = "../msg_store_database_leveldb_plugin" }
 msg_store_server_api = { path = "../msg_store_server_api" }
 msg_store_uuid = { path = "../msg_store_uuid" }
 serde = { version = "1.0", features = ["derive"] }

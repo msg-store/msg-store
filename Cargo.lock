@@ -1001,30 +1001,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http-server-leveldb-filestorage"
-version = "0.1.0"
-dependencies = [
- "actix",
- "actix-multipart",
- "actix-web",
- "actix-web-actors",
- "bytes 1.1.0",
- "clap",
- "dirs",
- "env_logger",
- "futures",
- "log",
- "msg-store",
- "msg_store_database_in_memory_plugin",
- "msg_store_database_leveldb_plugin",
- "msg_store_database_plugin",
- "msg_store_server_api",
- "msg_store_uuid",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "httparse"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1270,6 +1246,30 @@ name = "msg-store"
 version = "0.8.0"
 dependencies = [
  "msg_store_uuid",
+]
+
+[[package]]
+name = "msg-store-http-server"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-multipart",
+ "actix-web",
+ "actix-web-actors",
+ "bytes 1.1.0",
+ "clap",
+ "dirs",
+ "env_logger",
+ "futures",
+ "log",
+ "msg-store",
+ "msg_store_database_in_memory_plugin",
+ "msg_store_database_leveldb_plugin",
+ "msg_store_database_plugin",
+ "msg_store_server_api",
+ "msg_store_uuid",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
