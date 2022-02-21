@@ -13,7 +13,7 @@ const {
     getStore, updateStore,
     getGroupDefaults, setGroupDefaults, deleteGroupDefaults,
     getStream, addStream,
-    exportMsgs
+    // exportMsgs
 } = msgStore("http://127.0.0.1:8080")
 
 let server

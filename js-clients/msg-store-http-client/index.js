@@ -226,13 +226,13 @@ export default function (url) {
         return await sendRequest(reqOptions)
     }
 
-    const exportMsgs = async outputDirectory => {
-        const res = await sendRequest({ url: exportRoute, method: 'GET', params: { outputDirectory } })
-        if (res.data) {
-            res.data = JSON.parse(res.data)
-        }
-        return res
-    }
+    // const exportMsgs = async outputDirectory => {
+    //     const res = await sendRequest({ url: exportRoute, method: 'GET', params: { outputDirectory } })
+    //     if (res.data) {
+    //         res.data = JSON.parse(res.data)
+    //     }
+    //     return res
+    // }
 
     return {
         addMsg,
@@ -251,6 +251,6 @@ export default function (url) {
         setGroupDefaults,
         getGroupDefaults,
         deleteGroupDefaults,
-        exportMsgs
+        // exportMsgs
     }
 }
