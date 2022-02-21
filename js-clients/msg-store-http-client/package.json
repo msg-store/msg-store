@@ -1,7 +1,7 @@
 {
   "name": "msg-store-http-client",
-  "version": "1.0.0",
-  "description": "a http client for the msg-store",
+  "version": "0.1.0",
+  "description": "A http client for the msg-store",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -11,12 +11,13 @@
     "type": "git",
     "url": "git+https://github.com/msg-store/msg-store.git"
   },
-  "author": "",
-  "license": "ISC",
+  "keywords": [ "msg-store", "http-client" ],
+  "author": "Joshua Enokson",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/msg-store/msg-store/issues"
   },
-  "homepage": "https://github.com/msg-store/msg-store#readme",
+  "homepage": "https://github.com/msg-store/msg-store/tree/develop/js-clients/msg-store-http-client#readme",
   "dependencies": {
     "query-string": "^7.1.1"
   },
