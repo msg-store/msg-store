@@ -55,28 +55,28 @@ macro_rules! api_error {
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDefaults {
-    priority: u16,
-    max_byte_size: Option<u64>,
+    pub priority: u16,
+    pub max_byte_size: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupData {
-    priority: u16,
-    byte_size: u64,
-    max_byte_size: Option<u64>,
-    msg_count: usize,
+    pub priority: u16,
+    pub byte_size: u64,
+    pub max_byte_size: Option<u64>,
+    pub msg_count: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreData {
-    byte_size: u64,
-    max_byte_size: Option<u64>,
-    msg_count: usize,
-    group_count: usize,
-    groups: Vec<GroupData>,
-    group_defaults: Vec<GroupDefaults>,
+    pub byte_size: u64,
+    pub max_byte_size: Option<u64>,
+    pub msg_count: usize,
+    pub group_count: usize,
+    pub groups: Vec<GroupData>,
+    pub group_defaults: Vec<GroupDefaults>,
 }
 
 pub async fn handle(store_mutex: &Mutex<Store>) -> Result<StoreData, ApiError> {
