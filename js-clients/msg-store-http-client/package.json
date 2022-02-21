@@ -1,6 +1,6 @@
 {
   "name": "msg-store-http-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A http client for the msg-store",
   "main": "index.js",
   "type": "module",
