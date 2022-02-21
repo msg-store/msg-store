@@ -12,7 +12,10 @@
     "type": "git",
     "url": "git+https://github.com/msg-store/msg-store.git"
   },
-  "keywords": [ "msg-store", "http-client" ],
+  "keywords": [
+    "msg-store",
+    "http-client"
+  ],
   "author": "Joshua Enokson",
   "license": "MIT",
   "bugs": {
