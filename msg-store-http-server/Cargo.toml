@@ -24,7 +24,7 @@ dirs = "1.0.4"
 env_logger = "0.9.0"
 futures = "0.3.19"
 log = "0.4.14"
-msg-store = { path = "../msg-store", version = "0.9.0" }
+msg-store = { path = "../msg-store", version = "0.9.1" }
 msg_store_database_plugin = { path = "../msg_store_database_plugin", version = "0.1.0" }
 msg_store_database_in_memory_plugin = { path = "../msg_store_database_in_memory_plugin", version = "0.1.0" }
 msg_store_database_leveldb_plugin = { path = "../msg_store_database_leveldb_plugin", version = "0.1.0" }
