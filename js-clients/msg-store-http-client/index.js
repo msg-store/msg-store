@@ -141,8 +141,8 @@ export default function (url) {
     })
   }
 
-  const getGroup = async (priority, options) => {
-    const res = await sendRequest({ url: groupRoute, params: { priority, ...options } })
+  const getGroup = async (options) => {
+    const res = await sendRequest({ url: groupRoute, params: { ...options } })
     if (res.data) {
       res.data = JSON.parse(res.data)
     }
