@@ -84,7 +84,7 @@ Get a message from the store
 import msgStoreClient from 'msg-store-http-client'
 const { getMsg } = msgStore('http://127.0.0.1:8080')
 const main = async () => {
-    await getMsg({}) // gets the next msg in the store
+    await getMsg({}) // => gets the next msg in the store
     await getMsg({ uuid: '1-2-3-4' }) // => gets the msg associated with uuid
     await getMsg({ priority: 1 }) // => get the next msg from priority 1
     await getMsg({ reverse: true }) // => gets the next msg in reverse order
@@ -110,13 +110,9 @@ Get the next message from the store (the highest priority then oldest msg)
 **Examples**
 ```javascript
 import msgStoreClient from 'msg-store-http-client'
-const { getMsg } = msgStore('http://127.0.0.1:8080')
+const { getNext } = msgStore('http://127.0.0.1:8080')
 const main = async () => {
-    await getMsg({}) // gets the next msg in the store
-    await getMsg({ uuid: '1-2-3-4' }) // => gets the msg associated with uuid
-    await getMsg({ priority: 1 }) // => get the next msg from priority 1
-    await getMsg({ reverse: true }) // => gets the next msg in reverse order
-    await getMsg({ priority: 2, reverse: true }) // => gets the next msg from group 2 in reverse order
+    await getNext() // => gets the next msg in the store
 }
 ```
 
