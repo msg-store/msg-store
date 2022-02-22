@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
+pub const DEFAULT_NODE_ID: Option<u16> = None;
+
 #[derive(Debug)]
 pub enum StoreErrorTy {
     UuidManagerError(UuidManagerError),
@@ -135,7 +137,7 @@ pub struct AddResult {
 /// The base unit which stores information about inserted messages and priority groups
 /// to determine which messages should be forwarded or burned first.
 /// 
-/// The store can contain 4,294,967,295 priorities.
+/// The store can contain 65,535 priorities.
 /// Messages are forwarded on a highest priority then oldest status basis.
 /// Messages are burned/pruned on a lowest priority then oldest status basis.
 /// Messages are only burned once the store has reached the max bytesize limit.
@@ -388,9 +390,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::Store;
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
     /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// 
     /// ```
@@ -426,10 +428,10 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::Store;
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
-    /// let uuid = store.uuid(1);
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
+    /// let uuid = store.uuid(1).unwrap();
     /// let add_result = store.add_with_uuid(uuid, "my message".len() as u64).unwrap();
     /// 
     /// ```
@@ -482,9 +484,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::Store;
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
     /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// store.del(uuid).unwrap();
     /// 
@@ -533,9 +535,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::Store;
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
     /// store.add(1, "my message".len() as u64).unwrap();
     /// store.del_group(&1).unwrap();
     /// 
@@ -564,9 +566,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::Store;
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
     /// let uuid = store.add(1, "my message".len() as u64).unwrap().uuid;
     /// let my_message = store.get(Some(uuid), None, false).unwrap();
     /// assert!(my_message.is_some());
@@ -703,11 +705,12 @@ impl Store {
     /// As always, indexes start with zero. If the priority argument is passed a integer the function will only return a vec containing metadata from that priority.
     /// 
     /// # Example
-    /// 
-    /// let mut store = open();
-    /// let uuid1 = store.add(1, "my message".len() as u32).unwrap().uuid;
-    /// let uuid2 = store.add(1, "my second message".len() as u32).unwrap().uuid;
-    /// let uuid3 = store.add(1, "my thrid message".len() as u32).unwrap().uuid;
+    /// ```
+    /// use msg_store::{Store, DEFAULT_NODE_ID};
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
+    /// let uuid1 = store.add(1, "my message".len() as u64).unwrap().uuid;
+    /// let uuid2 = store.add(1, "my second message".len() as u64).unwrap().uuid;
+    /// let uuid3 = store.add(1, "my thrid message".len() as u64).unwrap().uuid;
     /// 
     /// let range = (0,2);
     /// let priority = Some(1);
@@ -715,7 +718,7 @@ impl Store {
     /// assert_eq!(uuid1, set[0].uuid);
     /// assert_eq!(uuid2, set[1].uuid);
     /// assert_eq!(uuid3, set[2].uuid);
-    /// 
+    /// ```
     pub fn get_metadata(&mut self, range: (u32, u32), priority: Option<u16>) -> Vec<PacketMetaData> {
         let mut uuids = vec![];
         let mut iter_count: u32 = 0;
@@ -772,9 +775,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::store::{Store,GroupDefaults};
+    /// use msg_store::{Store,GroupDefaults, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
     /// store.add(1, "foo".len() as u64).unwrap();
     /// store.add(1, "bar".len() as u64).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
@@ -803,10 +806,10 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::store::{Store,GroupDefaults};
+    /// use msg_store::{Store,GroupDefaults, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
-    /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) });
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap();
+    /// store.update_group_defaults(1, &GroupDefaults{ max_byte_size: Some(6) }).unwrap();
     /// store.add(1, "foo".len() as u64).unwrap();
     /// store.add(1, "bar".len() as u64).unwrap();
     /// 
@@ -840,9 +843,9 @@ impl Store {
     /// 
     /// # Example
     /// ```
-    /// use msg_store::store::{Store, StoreDefaults};
+    /// use msg_store::{Store, StoreDefaults, DEFAULT_NODE_ID};
     /// 
-    /// let mut store = Store::new();
+    /// let mut store = Store::new(DEFAULT_NODE_ID).unwrap( );
     /// store.add(1, "foo".len() as u64).unwrap();
     /// store.add(1, "bar".len() as u64).unwrap();
     /// assert_eq!(6, store.byte_size); // The store should contain 6 bytes of data, 3 for each message.
