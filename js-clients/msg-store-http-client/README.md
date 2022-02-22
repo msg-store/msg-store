@@ -32,8 +32,8 @@ main()
 
 ---
 `addMsg(<number>, <string>)`  
-* `priority` **number** the priority to group to place in the msg in.  
-* `msg` **string** the msg to put in the store.  
+* `priority` **number** The priority to group to place the msg in.  
+* `msg` **string** The msg to put in the store.  
 
 **Returns:**
 * `res` **object**
@@ -73,8 +73,8 @@ const main = async () => {
     * `res.error` **string?** The error message if statusCode is not 200
     * `res.data` **object?** The data returned if statusCode is 200
         * `data.uuid` **string** The uuid of the msg
-        * `data.headers` **object** an object containing the headers sent with the message on insert
-        * `data.msg` **string** the message   
+        * `data.headers` **object** An object containing the headers sent with the message on insert
+        * `data.msg` **string** The message   
 
 Get a message from the store
 * The `data` parameter will be null if no message is found
@@ -124,6 +124,9 @@ const main = async () => {
 * `res` **object**
     * `res.statusCode` **number** The http status code
     * `res.error` **string?** The error message if statusCode is not 200
+
+Remove a msg from the store
+
 **Examples**
 ```javascript
 import msgStoreClient from 'msg-store-http-client'
@@ -148,10 +151,10 @@ const main = async () => {
     * `res.error` **string?** The error message if statusCode is not 200
     * `res.data` **object?** The data returned if statusCode is 200
         * `data.uuid` **string** The uuid of the msg
-        * `data.headers` **object** an object containing the headers sent with the message on insert
-        * `data.msgStream` **ReadStream** the message in chunks   
+        * `data.headers` **object** An object containing the headers sent with the message on insert
+        * `data.msgStream` **ReadStream** The message in chunks   
 
-Get a message from the store
+Get a message stream from the store
 * The `data` parameter will be null if no message is found
 
 **Examples**
@@ -177,7 +180,7 @@ const main = async () => {
 `addStream(<object>)`   
 
 * `options` **object**
-    * `options.priority` **number** the priority group to request a message from.
+    * `options.priority` **number** The priority group to request a message from.
     * `options.saveToFile` **boolean?** Tell the server to save the msg to file.
     * `options.bytesizeOverride` **number?** The size of the file. (required if saveToFile is set to true.)
     * `options.msgStream` **ReadStream** The Readable stream to send to the store.
@@ -219,7 +222,7 @@ const main = async () => {
 ---
 `getGroup(<object>)`   
 * `options` **object**   
-    * `options.priority` **number?** the priority group to get infomation of.
+    * `options.priority` **number?** The priority group to get infomation of.
     * `options.includeMsgData` **boolean?** Include a list msg uuids and byte sizes.   
 
 **Returns:**
@@ -231,7 +234,7 @@ const main = async () => {
         * `data.byteSize` **number** The byte size of the group.
         * `data.maxByteSize` **number?** The max byte size of the group.
         * `data.msgCount` **number** The number of messages in the group.
-        * `data.messages` **object[]**
+        * `data.messages` **object[]** An array of message data
             * `messages.uuid` **string** The uuid of a message belonging to the group.
             * `messages.byteSize` **number** The byte size of the message in the group.
 
@@ -277,7 +280,7 @@ Change a group's max byte size
 * `res` **object**
     * `res.statusCode` **number** The http status code.
     * `res.error` **string?** The error message if statusCode is not 200
-    * `res.data` **object?**
+    * `res.data` **object?** The data returned if statusCode is 200
         * `res.data.maxByteSize` **number** The max byte size of the group
 
 Get a groups max byte size
@@ -299,7 +302,7 @@ Delete a group's default behavior
 * `res` **object**
     * `res.statusCode` **number** The http status code.
     * `res.error` **string?** The error message if statusCode is not 200
-    * `res.data` **object?**
+    * `res.data` **object?** The data returned if statusCode is 200
         * `data.inserted` **number** The number of messages inserted.
         * `data.deleted` **number** The number of messages deleted via the api.
         * `data.pruned` **number?** The number of messages pruned automatically.
@@ -318,7 +321,7 @@ Get the current value of the store's statistics.
 * `res` **object**
     * `res.statusCode` **number** The http status code.
     * `res.error` **string?** The error message if statusCode is not 200
-    * `res.data` **object?**
+    * `res.data` **object?** The data returned if statusCode is 200
         * `data.inserted` **number** The number of messages inserted.
         * `data.deleted` **number** The number of messages deleted via the api.
         * `data.pruned` **number?** The number of messages pruned automatically.
@@ -332,7 +335,7 @@ Change the statistics of the store, returning the its last value.
 * `res` **object**
     * `res.statusCode` **number** The http status code.
     * `res.error` **string?** The error message if statusCode is not 200
-    * `res.data` **object?**
+    * `res.data` **object?** The data returned if statusCode is 200
         * `data.inserted` **number** The number of messages inserted.
         * `data.deleted` **number** The number of messages deleted via the api.
         * `data.pruned` **number?** The number of messages pruned automatically.
@@ -347,7 +350,7 @@ Reset the statistics of the store, returning its last value.
 * `res` **object**
     * `res.statusCode` **number** The http status code.
     * `res.error` **string?** The error message if statusCode is not 200
-    * `res.data` **object?**
+    * `res.data` **object?** The data returned if statusCode is 200
         * `data.byteSize` **number** 
         * `data.maxByteSize` **number?** 
         * `data.msgCount` **number** 
