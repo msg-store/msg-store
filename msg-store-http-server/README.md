@@ -1,5 +1,5 @@
 # msg-store-http-server
-An http server to expose the msg-store API broader applications
+An http server to expose the msg-store API for broader applications
 
 # Getting Started
 ```bash
