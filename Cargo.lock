@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "msg-store"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "msg_store_uuid",
 ]
