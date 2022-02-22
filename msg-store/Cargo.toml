@@ -2,9 +2,11 @@
 name = "msg-store"
 version = "0.8.0"
 description = "A fast and light-weight message store designed to work as a priority queue in low hardware equiped devices."
-authors = ["joshua"]
+authors = ["Joshua Enokson <enoksonprojects@protonmail.com>"]
 edition = "2018"
 license = "MIT"
+repository = "https://github.com/msg-store/msg-store"
+readme = "README.md"
 
 [dependencies]
 msg_store_uuid = { path = "../msg_store_uuid" }
