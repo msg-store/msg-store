@@ -9,4 +9,4 @@ repository = "https://github.com/msg-store/msg-store"
 readme = "README.md"
 
 [dependencies]
-msg_store_uuid = { path = "../msg_store_uuid" }
+msg_store_uuid = { path = "../msg_store_uuid", version = "0.1.0" }
