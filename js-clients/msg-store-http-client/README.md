@@ -244,3 +244,134 @@ const main = async () => {
     const group1 = await getGroup({ priority: 1 }).data // => [ groupData1 ]
 }
 ```
+
+---
+`deleteGroup(<number>)`   
+* `priority` **number** The priority group to remove from the store   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+
+Delete an entire group of messages in the store
+
+---
+`setGroupDefaults(<number>, <object>)`
+* `priority` **number** The priority group defaults to modify.  
+* `options` **object** 
+    * `options.maxByteSize` **number** The max capacity of the store in bytes.   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+
+Change a group's max byte size
+
+---
+`getGroupDefaults(<number>)`   
+* `priority` **number** The priority group to get the defaults for   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+    * `res.data` **object?**
+        * `res.data.maxByteSize` **number** The max byte size of the group
+
+Get a groups max byte size
+
+---
+`deleteGroupDefaults(<number>)`   
+* `priority` **number** The priority group to remove from the store   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+
+Delete a group's default behavior
+
+---
+`getStats()`   
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+    * `res.data` **object?**
+        * `data.inserted` **number** The number of messages inserted.
+        * `data.deleted` **number** The number of messages deleted via the api.
+        * `data.pruned` **number?** The number of messages pruned automatically.
+
+Get the current value of the store's statistics.
+
+---
+`updateStats(<object>)`   
+* `options` **object?**
+    * `options.add` **boolean** Determine if the new stats should be added to the current stats. Default: `false`.
+    * `options.inserted` **number** The number of messages inserted.
+    * `options.deleted` **number** The number of messages deleted via the api.
+    * `options.pruned` **number?** The number of messages pruned automatically.
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+    * `res.data` **object?**
+        * `data.inserted` **number** The number of messages inserted.
+        * `data.deleted` **number** The number of messages deleted via the api.
+        * `data.pruned` **number?** The number of messages pruned automatically.
+
+Change the statistics of the store, returning the its last value.
+
+---
+`deleteStats()`   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+    * `res.data` **object?**
+        * `data.inserted` **number** The number of messages inserted.
+        * `data.deleted` **number** The number of messages deleted via the api.
+        * `data.pruned` **number?** The number of messages pruned automatically.
+
+
+Reset the statistics of the store, returning its last value.
+
+---
+`getStore()`   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+    * `res.data` **object?**
+        * `data.byteSize` **number** 
+        * `data.maxByteSize` **number?** 
+        * `data.msgCount` **number** 
+        * `data.groupCount` **number** 
+        * `data.groups` **object[]**   
+            * `data.groups.priority` **number**   
+            * `data.groups.byteSize` **number**   
+            * `data.groups.maxByteSize` **number?**   
+            * `data.groups.msgCount` **number**   
+        * `data.groupDefaults` **object[]** 
+            * `data.groupDefaults.priority` **number**
+            * `data.groupDefaults.maxByteSize` **number?**
+
+
+Get information about the state of the store.
+
+---
+`updateStore(<object>)`
+* `options` **object** 
+    * `options.maxByteSize` **number** The max capacity of the store in bytes   
+
+**Returns:**
+* `res` **object**
+    * `res.statusCode` **number** The http status code.
+    * `res.error` **string?** The error message if statusCode is not 200
+
+Change the store's max byte size
