@@ -79,3 +79,6 @@ Note that --update and --no-update are conflicting options and the app will reje
 
 ## Max Bytesizes
 The max bytesize of the store or any of the priority groups cannot be passed via flags, but can be configured in the config.json file or via the http api.
+
+## Available Clients
+[msg-store-http-client](https://www.npmjs.com/package/msg-store-http-client)
