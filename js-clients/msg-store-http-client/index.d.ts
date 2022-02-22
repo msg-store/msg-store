@@ -63,7 +63,7 @@ interface Group {
 }
 
 interface GetGroupResult extends Response {
-    data?: []
+    data?: Group[]
 }
 
 interface SetGroupDefaultsOptions {
@@ -129,7 +129,7 @@ interface MsgStoreAPI {
     deleteMsg: (uuid: string) => Promise<Response>,
     getStream: (options: GetMsgOptions) => Promise<GetStreamResult>,
     addStream: (priority: number, msgStream: Readable) => Promise<AddMsgResult>,
-    getGroup: (priority: number | null, options: GetGroupOptions) => Promise<GetGroupResult>,
+    getGroup: (options?: GetGroupOptions) => Promise<GetGroupResult>,
     deleteGroup: (priority: number) => Promise<Response>,
     setGroupDefaults: (priority: number, options: SetGroupDefaultsOptions) => Promise<Response>,
     getGroupDefaults: (priority: number) => Promise<GetGroupDefaultsResult>,
