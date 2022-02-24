@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "cargo build && npm run test --workspaces",
-    "test:release" : "cargo build --release && npm run test --workspaces"
+    "test:release" : "cargo build --release && npm run test --workspaces",
+    "build:armv7": "./build.sh"
   },
   "repository": {
     "type": "git",
