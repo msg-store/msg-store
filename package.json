@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "cargo build && npm run test --workspaces",
+    "test:api": "cd js-clients/msg-store-http-client && npm run test",
     "test:release" : "cargo build --release && npm run test --workspaces",
-    "build:armv7": "./build.sh"
+    "build:http": "./build.sh"
   },
   "repository": {
     "type": "git",
