@@ -124,12 +124,14 @@ fn get_app<'a>() -> App<'a, 'a> {
             Arg::with_name(HOST)
                 .short("h")
                 .long(HOST)
+                .takes_value(true)
                 .help("Sets the host address"),
         )
         .arg(
             Arg::with_name(PORT)
                 .short("p")
                 .long(PORT)
+                .takes_value(true)
                 .help("Sets the port number"),
         )
         .arg(
