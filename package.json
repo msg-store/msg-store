@@ -7,7 +7,8 @@
     "test": "cargo build && npm run test --workspaces",
     "test:api": "cd js-clients/msg-store-http-client && npm run test",
     "test:release" : "cargo build --release && npm run test --workspaces",
-    "build:http": "./build.sh"
+    "build:docker:http": "./builds/http-server/build.sh",
+    "publish:docker:http": "./builds/http-server/publish.sh"
   },
   "repository": {
     "type": "git",
