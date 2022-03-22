@@ -6,5 +6,6 @@ members = [
     "msg_store_database_plugin",
     "msg_store_database_in_memory_plugin",
     "msg_store_database_leveldb_plugin",
+    "msg-store-http-server-stresser",
     "msg_store_server_api"
 ]

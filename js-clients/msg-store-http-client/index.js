@@ -30,6 +30,7 @@ export default function (url) {
           body += chunk.toString()
         }).once('close', () => {
           if (stream.statusCode === 200) {
+            // console.log(req.listenerCount('data'))
             resolve({
               statusCode: stream.statusCode,
               data: body
