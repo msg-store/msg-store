@@ -28,7 +28,7 @@ msg-store = { path = "../msg-store", version = "0.9.1" }
 msg_store_database_plugin = { path = "../msg_store_database_plugin", version = "0.1.0" }
 msg_store_database_in_memory_plugin = { path = "../msg_store_database_in_memory_plugin", version = "0.1.0" }
 msg_store_database_leveldb_plugin = { path = "../msg_store_database_leveldb_plugin", version = "0.1.0" }
-msg_store_server_api = { path = "../msg_store_server_api", version = "0.1.0" }
+msg_store_server_api = { path = "../msg_store_server_api", version = "0.1.1" }
 msg_store_uuid = { path = "../msg_store_uuid", version = "0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

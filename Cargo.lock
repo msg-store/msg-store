@@ -1449,7 +1449,7 @@ dependencies = [
 
 [[package]]
 name = "msg_store_server_api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytes 1.1.0",
  "futures",
