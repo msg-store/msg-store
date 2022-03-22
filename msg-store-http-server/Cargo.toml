@@ -1,6 +1,6 @@
 [package]
 name = "msg-store-http-server"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Joshua Enokson <enoksonprojects@protonmail.com>"]
 license = "MIT"
