@@ -71,19 +71,20 @@ pub async fn handle(
     store_mutex: &Mutex<Store>,
     configuration_mutex: &Mutex<StoreConfig>,
     configuration_path_option: &Option<PathBuf>, 
-    priority: u16) -> Result<(), ApiError> {
+    priority: u16
+) -> Result<(), ApiError> {
+    let mut store = match store_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut config = match configuration_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
     {
-        let mut store = match store_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         store.delete_group_defaults(priority);
     }
     {
-        let mut config = match configuration_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         let groups = match &config.groups {
             Some(groups) => groups,
             None => {

@@ -116,7 +116,8 @@ pub async fn handle<T: Chunky>(
     file_storage: &Option<Mutex<FileStorage>>,
     stats: &Mutex<Stats>,
     database: &Mutex<Database>,
-    mut payload: T) -> Result<Arc<Uuid>, AddError> {
+    mut payload: T
+) -> Result<Arc<Uuid>, AddError> {
 
         let mut metadata_string = String::new();
         let mut msg_chunk = BytesMut::new();
@@ -213,11 +214,20 @@ pub async fn handle<T: Chunky>(
                 }
             }
         }?;
-        let add_result = {
-            let mut store = match store.lock() {
-                Ok(store) => Ok(store),
-                Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
-            }?;
+        // Block the store to prevent read/write conflicts
+        let mut store = match store.lock() {
+            Ok(store) => Ok(store),
+            Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
+        }?;
+        let mut database = match database.lock() {
+            Ok(database) => Ok(database),
+            Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
+        }?;
+        let mut stats = match stats.lock() {
+            Ok(stats) => Ok(stats),
+            Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
+        }?;
+        let add_result = {            
             match store.add(priority, msg_byte_size) {
                 Ok(add_result) => Ok(add_result),
                 Err(error) => match error.err_ty {
@@ -233,10 +243,11 @@ pub async fn handle<T: Chunky>(
         let mut deleted_count = 0;
         for uuid in add_result.msgs_removed.into_iter() {
             {
-                let mut database = match database.lock() {
-                    Ok(database) => Ok(database),
-                    Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
-                }?;
+                // TODO: remove this comment
+                // let mut database = match database.lock() {
+                //     Ok(database) => Ok(database),
+                //     Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
+                // }?;
                 if let Err(error) = database.del(uuid.clone()) {
                     return Err(add_msg_error!(AddErrorTy::DatabaseError(error)))
                 }
@@ -252,14 +263,8 @@ pub async fn handle<T: Chunky>(
             }
             deleted_count += 1;
         }
-        {
-            let mut stats = match stats.lock() {
-                Ok(stats) => Ok(stats),
-                Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
-            }?;
-            stats.pruned += deleted_count;
-            stats.inserted += 1;
-        }
+        stats.pruned += deleted_count;
+        stats.inserted += 1;
         // add to file manager if needed
         if save_to_file {
             if let Some(file_storage) = file_storage {
@@ -274,14 +279,8 @@ pub async fn handle<T: Chunky>(
                 return Err(add_msg_error!(AddErrorTy::CouldNotFindFileStorage));
             }
         }
-        {        
-            let mut database = match database.lock() {
-                Ok(database) => Ok(database),
-                Err(error) => Err(add_msg_error!(AddErrorTy::LockingError, error))
-            }?;
-            if let Err(error) = database.add(add_result.uuid.clone(), Bytes::copy_from_slice(msg.as_bytes()), msg_byte_size) {
-                return Err(add_msg_error!(AddErrorTy::DatabaseError(error)));
-            }
+        if let Err(error) = database.add(add_result.uuid.clone(), Bytes::copy_from_slice(msg.as_bytes()), msg_byte_size) {
+            return Err(add_msg_error!(AddErrorTy::DatabaseError(error)));
         }
         Ok(add_result.uuid)
 }

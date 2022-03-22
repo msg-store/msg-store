@@ -74,43 +74,35 @@ pub async fn handle(
     store_mutex: &Mutex<Store>,
     database_mutex: &Mutex<Database>,
     file_storage_option: &Option<Mutex<FileStorage>>,
-    stats_mutex: &Mutex<Stats>,
-    uuid: Arc<Uuid>) -> Result<(), RemoveError> {
-    {
-        let mut store = match store_mutex.lock() {
+    stats_mutex: &Mutex<Stats>, uuid: Arc<Uuid>
+) -> Result<(), RemoveError> {
+    let mut store = match store_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+    }?;
+    let mut stats = match stats_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+    }?;
+    let mut db = match database_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
+    }?;
+    if let Err(error) = store.del(uuid.clone()) {
+        return Err(rm_msg_error!(RemoveErrorTy::StoreError(error)))
+    }    
+    if let Err(error) = db.del(uuid.clone()) {
+        return Err(rm_msg_error!(RemoveErrorTy::DatabaseError(error)));
+    }
+    if let Some(file_storage_mutex) = &file_storage_option {
+        let mut file_storage = match file_storage_mutex.lock() {
             Ok(gaurd) => Ok(gaurd),
             Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
         }?;
-        if let Err(error) = store.del(uuid.clone()) {
-            return Err(rm_msg_error!(RemoveErrorTy::StoreError(error)))
+        if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
+            return Err(rm_msg_error!(RemoveErrorTy::FileStorageError(error)))
         }
     }
-    {
-        let mut db = match database_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
-        }?;
-        if let Err(error) = db.del(uuid.clone()) {
-            return Err(rm_msg_error!(RemoveErrorTy::DatabaseError(error)));
-        }
-    }
-    {
-        if let Some(file_storage_mutex) = &file_storage_option {
-            let mut file_storage = match file_storage_mutex.lock() {
-                Ok(gaurd) => Ok(gaurd),
-                Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
-            }?;
-            if let Err(error) = rm_from_file_storage(&mut file_storage, &uuid) {
-                return Err(rm_msg_error!(RemoveErrorTy::FileStorageError(error)))
-            }
-        }
-    }
-    {
-        let mut stats = match stats_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(rm_msg_error!(RemoveErrorTy::LockingError, err))
-        }?;
-        stats.deleted += 1;
-    }
+    stats.deleted += 1;
     Ok(())
 }

@@ -79,54 +79,61 @@ pub async fn handle(
     let defaults = GroupDefaults {
         max_byte_size: max_byte_size_option,
     };
+    let mut store = match store_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut db = match database_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut stats = match stats_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut config = match store_configuration_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
     let (pruned_count, msgs_removed) = {
-        let mut store = match store_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         match store.update_group_defaults(priority, &defaults) {
             Ok((_bytes_removed, msgs_removed)) => Ok((msgs_removed.len() as u64, msgs_removed)),
             Err(err) => Err(api_error!(ErrTy::StoreError(err)))
         }
     }?;
-    for uuid in msgs_removed.into_iter() {
-        {
-            let mut db = match database_mutex.lock() {
-                Ok(gaurd) => Ok(gaurd),
-                Err(err) => Err(api_error!(ErrTy::LockingError, err))
-            }?;
+    // remove messages
+    {
+        // remove from database
+        for uuid in msgs_removed.iter() {
             if let Err(err) = db.del(uuid.clone()) {
                 return Err(api_error!(ErrTy::DatabaseError(err)))
             }
         }
+        // remove from file_storage
         if let Some(file_storage_mutex) = file_storage_option {
             let mut file_storage = match file_storage_mutex.lock() {
                 Ok(gaurd) => Ok(gaurd),
                 Err(err) => Err(api_error!(ErrTy::LockingError, err))
             }?;
-            if let Err(err) = rm_from_file_storage(&mut file_storage, &uuid) {
-                return Err(api_error!(ErrTy::FileStorageError(err)))
-            }
+            for uuid in msgs_removed.iter() {
+                if let Err(err) = rm_from_file_storage(&mut file_storage, &uuid) {
+                    return Err(api_error!(ErrTy::FileStorageError(err)))
+                }
+            }        
         }
     }
+    // update stats
     {
-        let mut stats = match stats_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         stats.pruned += pruned_count;
     }
-    let mk_group_config = || -> GroupConfig {
-        GroupConfig {
-            priority,
-            max_byte_size: max_byte_size_option,
-        }
-    };
+    // update config
     {
-        let mut config = match store_configuration_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
+        let mk_group_config = || -> GroupConfig {
+            GroupConfig {
+                priority,
+                max_byte_size: max_byte_size_option,
+            }
+        };
         if let Some(groups) = config.groups.borrow_mut() {
             let mut group_index: Option<usize> = None;
             for i in 0..groups.len() {
@@ -157,6 +164,6 @@ pub async fn handle(
         if let Err(err) = update_config(&config, store_configuration_path_option) {
             return Err(api_error!(ErrTy::ConfigError(err)))
         }
-    }    
+    }
     Ok(())
 }

@@ -170,11 +170,15 @@ pub async fn handle(
     priority_option: Option<u16>,
     reverse_option: bool
 ) -> Result<Option<Either<ReturnBody, String>>, GetError> {
+    let store = match store.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
+    }?;
+    let mut database = match database_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
+    }?;
     let uuid = {
-        let store = match store.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
-        }?;
         match store.get(uuid_option, priority_option, reverse_option) {
             Ok(uuid) => match uuid {
                 Some(uuid) => Ok(uuid),
@@ -183,11 +187,7 @@ pub async fn handle(
             Err(error) => Err(get_msg_error!(GetErrorTy::StoreError(error)))
         }
     }?;
-    let msg = {
-        let mut database = match database_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(error) => Err(get_msg_error!(GetErrorTy::LockingError, error))
-        }?;
+    let msg = {        
         match database.get(uuid.clone()) {
             Ok(msg) => Ok(msg),
             Err(error) => Err(get_msg_error!(GetErrorTy::DatabaseError(error)))

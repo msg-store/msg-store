@@ -74,11 +74,23 @@ pub async fn handle(
     store_config_path_option: &Option<PathBuf>,
     max_byte_size: Option<u64>
 ) -> Result<(), ApiError> {
+    let mut store = match store_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut database = match database_mx.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut stats = match stats_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut config = match store_config_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
     let (prune_count, pruned_uuids) = {
-        let mut store = match store_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;        
         store.max_byte_size = max_byte_size;
         let defaults = StoreDefaults {
             max_byte_size,
@@ -89,10 +101,6 @@ pub async fn handle(
         }
     }?;
     {
-        let mut database = match database_mx.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         for uuid in &pruned_uuids {
             if let Err(err) = database.del(uuid.clone()) {
                 return Err(api_error!(ErrTy::DatabaseError(err)))
@@ -111,17 +119,9 @@ pub async fn handle(
         }
     }
     {
-        let mut stats = match stats_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         stats.pruned += prune_count;
     }
     {
-        let mut config = match store_config_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         config.max_byte_size = max_byte_size;
         if let Err(err) = update_config(&mut config, store_config_path_option) {
             return Err(api_error!(ErrTy::ConfigError(err)))

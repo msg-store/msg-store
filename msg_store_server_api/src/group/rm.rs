@@ -67,12 +67,21 @@ pub async fn handle(
     database_mutex: &Mutex<Database>, 
     file_storage_option: &Option<Mutex<FileStorage>>,
     stats_mutex: &Mutex<Stats>,
-    priority: u16) -> Result<(), ApiError> {
+    priority: u16
+) -> Result<(), ApiError> {
+    let mut store = match store_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut db = match database_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
+    let mut stats = match stats_mutex.lock() {
+        Ok(gaurd) => Ok(gaurd),
+        Err(err) => Err(api_error!(ErrTy::LockingError, err))
+    }?;
     let list = {
-        let store = match store_mutex.lock() {
-            Ok(gaurd) => Ok(gaurd),
-            Err(err) => Err(api_error!(ErrTy::LockingError, err))
-        }?;
         // get list of messages to remove
         let list = if let Some(group) = store.groups_map.get(&priority) {
             group
@@ -87,23 +96,11 @@ pub async fn handle(
     };
     let mut deleted_count = 0;
     for uuid in list.iter() {
-        {
-            let mut store = match store_mutex.lock() {
-                Ok(gaurd) => Ok(gaurd),
-                Err(err) => Err(api_error!(ErrTy::LockingError, err))
-            }?;
-            if let Err(err) = store.del(uuid.clone()) {
-                return Err(api_error!(ErrTy::StoreError(err)));
-            }
+        if let Err(err) = store.del(uuid.clone()) {
+            return Err(api_error!(ErrTy::StoreError(err)));
         }
-        {
-            let mut db = match database_mutex.lock() {
-                Ok(gaurd) => Ok(gaurd),
-                Err(err) => Err(api_error!(ErrTy::LockingError, err))
-            }?;
-            if let Err(err) = db.del(uuid.clone()) {
-                return Err(api_error!(ErrTy::DatabaseError(err)));
-            }
+        if let Err(err) = db.del(uuid.clone()) {
+            return Err(api_error!(ErrTy::DatabaseError(err)));
         }
         if let Some(file_storage_mutex) = &file_storage_option {
             let mut file_storage = match file_storage_mutex.lock() {
@@ -116,10 +113,6 @@ pub async fn handle(
         }
         deleted_count += 1;
     }
-    let mut stats = match stats_mutex.lock() {
-        Ok(gaurd) => Ok(gaurd),
-        Err(err) => Err(api_error!(ErrTy::LockingError, err))
-    }?;
     stats.deleted += deleted_count;
     Ok(())
 }
