@@ -17,16 +17,17 @@ const {
 } = msgStore("http://127.0.0.1:8080")
 
 let server
+const msgStorePath = './msg-store-test'
+const leveldbPath = `${msgStorePath}/leveldb`
+const fileStoragePath = `${msgStorePath}/filestorage`
 beforeEach(async function () {
     // TODO: change to reflect file location
-    rmSync('/tmp/msg-store-test', { force: true, recursive: true })
-    rmSync('/tmp/msg-store-test', { force: true, recursive: true })
-    mkdirSync('/tmp/msg-store-test')
+    rmSync(msgStorePath, { force: true, recursive: true })
+    mkdirSync(msgStorePath)
     await new Promise((resolve, _reject) => {
-        const bin = '../../target/debug/http-server-leveldb-filestorage'
+        const bin = '../../target/debug/msg-store-http-server'
         // const bin = 'msg-store-server'
-        const leveldbPath = '/tmp/msg-store-test/leveldb'
-        const fileStoragePath = '/tmp/msg-store-test/filestorage'
+        
         server = exec(`${bin} --node-id=12345 --database=leveldb --leveldb-path=${leveldbPath} --file-storage-path=${fileStoragePath}`)
         server.stdout.on('data', msg => {
             if (msg.includes('Starting "actix-web-service-127.0.0.1:8080" service on 127.0.0.1:8080')) {
@@ -43,7 +44,7 @@ beforeEach(async function () {
 })
 afterEach(async function () {
     // TODO: change to reflect file location
-    rmSync('/tmp/msg-store-test', { force: true, recursive: true })
+    rmSync(msgStorePath, { force: true, recursive: true })
     server.kill()
 })
 const getHash = reader => {
