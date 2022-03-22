@@ -1,22 +1,14 @@
-use hyper::{Body, Method, Request, Result as HyperResult, Response, Error as HyperError};
+use hyper::{Body, Method, Request};
 use hyper::Client;
 use tokio::{self, task::JoinHandle};
-use futures::future::*;
-
-
-
 use std::fs::{File, create_dir_all, remove_dir_all};
-use std::io::{BufReader, BufWriter, Write, Read};
-use std::ops::Deref;
+use std::io::{BufWriter, Write, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+
 use rand::{Rng};
 use rayon::prelude::*;
-use tempdir::TempDir;
 
 fn get_file_name() -> PathBuf {
     let characters = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890".as_bytes().to_vec();
